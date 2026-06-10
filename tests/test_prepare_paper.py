@@ -131,3 +131,25 @@ def test_build_manifest_end_to_end(tmp_path):
     # round-trips as JSON
     import json
     json.dumps(manifest)
+
+
+def test_parse_authors_reads_name_with_matriculation_lines():
+    md = "Petr Nasybulin 478314\nPhilipp Gembruch 472685\n\nRWTH Aachen, Juni 2026\n"
+    names, institution = pp.parse_authors(md)
+    assert names == ["Petr Nasybulin 478314", "Philipp Gembruch 472685"]
+    assert institution == "RWTH Aachen"
+
+
+def test_resolve_assets_finds_autors_spelling(tmp_path):
+    project = tmp_path / "proj"
+    glob = tmp_path / "global"
+    _make_sample(project / "Samples", "a.md")
+    (project / "Autors").mkdir(parents=True)
+    (project / "Autors" / "autors.md").write_text(
+        "Petr Nasybulin 478314\n\nRWTH Aachen, Juni 2026", encoding="utf-8"
+    )
+    _make_sample(glob / "Samples", "g.md")
+    (glob / "authors.md").write_text("- G\ninstitution: Y", encoding="utf-8")
+
+    assets = pp.resolve_assets(project, glob)
+    assert assets.authors_file == project / "Autors" / "autors.md"

@@ -29,19 +29,37 @@ def german_dateline(institution: str, today: date) -> str:
     return f"{institution}, {german_month(today.month)} {today.year}"
 
 
+_DATELINE_RE = re.compile(r"^(.*?),\s*[A-Za-zÄÖÜäöü]+\s+\d{4}\s*$")
+_MATRIC_RE = re.compile(r"^.+\s+\d{4,}$")
+
+
 def parse_authors(md_text: str) -> tuple[list[str], str]:
-    """Return (author_names, institution) parsed from an authors.md body."""
+    """Return (author_names, institution) parsed from an authors file body.
+
+    Recognizes two author formats:
+      - ``- Max Mustermann``      (Markdown bullet)
+      - ``Petr Nasybulin 478314`` (name followed by a matriculation number)
+    Institution comes from an ``institution: X`` field, or falls back to the text
+    before the comma on a dateline line like ``RWTH Aachen, Juni 2026``.
+    """
     names: list[str] = []
     institution = ""
     for raw in md_text.splitlines():
         line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.lower().startswith("institution:"):
+            institution = line.split(":", 1)[1].strip()
+            continue
+        if _DATELINE_RE.match(line):
+            continue  # the dateline is not an author
         if line.startswith("- "):
             names.append(line[2:].strip())
-        elif line.lower().startswith("institution:"):
-            institution = line.split(":", 1)[1].strip()
+        elif _MATRIC_RE.match(line):
+            names.append(line)
     if not institution:
         for raw in md_text.splitlines():
-            m = re.match(r"^(.*?),\s*[A-Za-zÄÖÜäöü]+\s+\d{4}\s*$", raw.strip())
+            m = _DATELINE_RE.match(raw.strip())
             if m:
                 institution = m.group(1).strip()
                 break
@@ -58,8 +76,24 @@ def _has_files(d: Path) -> bool:
     return d.is_dir() and any(p.is_file() for p in d.iterdir())
 
 
+# Accept common folder/file spellings (incl. the "Autors"/"autors" variant
+# used in the wild). Ordered by preference.
+_AUTHORS_DIRS = ("Authors", "Autors")
+_AUTHORS_FILES = ("authors.md", "autors.md")
+
+
+def _find_project_authors(project_path: Path) -> Path | None:
+    """Locate the project authors file across known folder/file spellings."""
+    for d in _AUTHORS_DIRS:
+        for f in _AUTHORS_FILES:
+            candidate = project_path / d / f
+            if candidate.is_file():
+                return candidate
+    return None
+
+
 def resolve_assets(project_path: Path, global_root: Path) -> Assets:
-    """Hybrid resolution: project Samples/ + Authors/authors.md win; else global."""
+    """Hybrid resolution: project Samples/ + Aut(h)ors/aut(h)ors.md win; else global."""
     proj_samples = project_path / "Samples"
     glob_samples = global_root / "Samples"
     if _has_files(proj_samples):
@@ -71,15 +105,16 @@ def resolve_assets(project_path: Path, global_root: Path) -> Assets:
             f"No samples in {proj_samples} or {glob_samples}"
         )
 
-    proj_authors = project_path / "Authors" / "authors.md"
+    proj_authors = _find_project_authors(project_path)
     glob_authors = global_root / "authors.md"
-    if proj_authors.is_file():
+    if proj_authors is not None:
         authors_file = proj_authors
     elif glob_authors.is_file():
         authors_file = glob_authors
     else:
         raise FileNotFoundError(
-            f"No authors.md in {proj_authors} or {glob_authors}"
+            f"No authors file under {project_path} (Aut(h)ors/aut(h)ors.md) "
+            f"or {glob_authors}"
         )
 
     return Assets(samples_dir=samples_dir, authors_file=authors_file)
