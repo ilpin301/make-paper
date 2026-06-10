@@ -59,3 +59,27 @@ def extract_abstract(md: str) -> tuple[str | None, str]:
     abstract = "\n".join(lines[start + 1:end]).strip()
     body = "\n".join(lines[:start] + lines[end:]).strip("\n")
     return abstract, body
+
+
+_IMG = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+
+
+def resolve_images(md: str, project_root: Path) -> tuple[str, list[str]]:
+    """Rewrite relative Markdown image targets to absolute project paths.
+
+    Returns (rewritten_md, missing_targets). URLs and absolute paths are kept;
+    missing relative targets are recorded and left unchanged.
+    """
+    missing: list[str] = []
+
+    def repl(m: re.Match) -> str:
+        alt, target = m.group(1), m.group(2).strip()
+        if target.startswith(("http://", "https://")) or Path(target).is_absolute():
+            return m.group(0)
+        candidate = (project_root / target).resolve()
+        if candidate.is_file():
+            return f"![{alt}]({candidate.as_posix()})"
+        missing.append(target)
+        return m.group(0)
+
+    return _IMG.sub(repl, md), missing

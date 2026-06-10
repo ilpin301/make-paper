@@ -50,3 +50,14 @@ def test_extract_abstract_returns_none_when_absent():
     abstract, body = pre.extract_abstract(md)
     assert abstract is None
     assert body == md
+
+
+def test_resolve_images_rewrites_existing_relative_paths(tmp_path):
+    (tmp_path / "img").mkdir()
+    (tmp_path / "img" / "a.png").write_bytes(b"x")
+    md = "![Abb](img/a.png) und ![Fehlt](img/missing.png) und ![Web](https://x/y.png)"
+    out, missing = pre.resolve_images(md, tmp_path)
+    assert (tmp_path / "img" / "a.png").as_posix() in out
+    assert "img/missing.png" in out          # left untouched
+    assert "https://x/y.png" in out          # URL untouched
+    assert missing == ["img/missing.png"]
