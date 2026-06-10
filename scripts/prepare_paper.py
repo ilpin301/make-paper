@@ -2,8 +2,11 @@
 compute the German dateline, and emit a JSON manifest for the subagent."""
 from __future__ import annotations
 
+import argparse
+import json
 import re
 import shutil
+import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -102,3 +105,45 @@ def stage_samples(samples: list[Path], dest_dir: Path) -> list[Path]:
         shutil.copyfile(src, target)
         staged.append(target)
     return staged
+
+
+def build_manifest(project_path: Path, global_root: Path, staging_dir: Path,
+                   today: date) -> dict:
+    assets = resolve_assets(project_path, global_root)
+    samples = sorted(p for p in assets.samples_dir.iterdir() if p.is_file())
+    staged = stage_samples(samples, staging_dir)
+    names, institution = parse_authors(
+        assets.authors_file.read_text(encoding="utf-8")
+    )
+    return {
+        "project_path": str(project_path),
+        "wiki_sources": [str(p) for p in collect_wiki_sources(project_path)],
+        "sample_sources": [str(p) for p in staged],
+        "authors_source": str(assets.authors_file),
+        "author_names": names,
+        "dateline": german_dateline(institution, today),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="make-paper preparation helper")
+    parser.add_argument("--project", required=True, help="path to the wiki project")
+    parser.add_argument(
+        "--global-root",
+        default=str(Path.home() / ".claude" / "make-paper" / "assets"),
+        help="fallback assets root",
+    )
+    parser.add_argument("--staging", required=True, help="dir for renamed samples")
+    args = parser.parse_args(argv)
+    manifest = build_manifest(
+        project_path=Path(args.project),
+        global_root=Path(args.global_root),
+        staging_dir=Path(args.staging),
+        today=date.today(),
+    )
+    json.dump(manifest, sys.stdout, ensure_ascii=False, indent=2)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

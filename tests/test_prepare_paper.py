@@ -102,3 +102,32 @@ def test_stage_samples_renames_zero_padded_keeps_extension(tmp_path):
     assert names == ["sample-01.docx", "sample-02.md"]
     assert (dest / "sample-01.docx").read_text(encoding="utf-8") == "a"
     assert (dest / "sample-02.md").read_text(encoding="utf-8") == "z"
+
+
+def test_build_manifest_end_to_end(tmp_path):
+    project = tmp_path / "proj"
+    (project / "Wiki" / "Topics").mkdir(parents=True)
+    (project / "Wiki" / "Topics" / "topic.md").write_text("t", encoding="utf-8")
+    (project / "Samples").mkdir()
+    (project / "Samples" / "ref.md").write_text("style", encoding="utf-8")
+    (project / "Authors").mkdir()
+    (project / "Authors" / "authors.md").write_text(
+        "- Max Mustermann\ninstitution: RWTH Aachen\n", encoding="utf-8"
+    )
+    glob = tmp_path / "global"
+    glob.mkdir()
+    staging = tmp_path / "staging"
+
+    manifest = pp.build_manifest(
+        project_path=project, global_root=glob, staging_dir=staging,
+        today=date(2026, 6, 10),
+    )
+
+    assert [Path(p).name for p in manifest["wiki_sources"]] == ["topic.md"]
+    assert [Path(p).name for p in manifest["sample_sources"]] == ["sample-01.md"]
+    assert Path(manifest["authors_source"]).name == "authors.md"
+    assert manifest["author_names"] == ["Max Mustermann"]
+    assert manifest["dateline"] == "RWTH Aachen, Juni 2026"
+    # round-trips as JSON
+    import json
+    json.dumps(manifest)
