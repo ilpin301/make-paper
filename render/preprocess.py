@@ -109,3 +109,27 @@ def render_mermaid_blocks(md: str, out_dir: Path, runner) -> str:
         return f"![]({out_path.as_posix()})"
 
     return _MERMAID.sub(repl, md)
+
+
+def _yaml_scalar(value: str) -> str:
+    """Double-quote a YAML scalar, escaping backslashes and quotes."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def build_frontmatter(meta: dict) -> str:
+    """Build a Pandoc YAML metadata block from title/author/dateline/abstract.
+
+    Empty fields are omitted; abstract uses a literal block scalar.
+    """
+    lines = ["---"]
+    for key in ("title", "author", "dateline"):
+        if meta.get(key):
+            lines.append(f"{key}: {_yaml_scalar(meta[key])}")
+    if meta.get("abstract"):
+        lines.append("abstract: |")
+        for ln in meta["abstract"].splitlines():
+            lines.append("  " + ln)
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)

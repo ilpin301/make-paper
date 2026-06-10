@@ -81,3 +81,28 @@ def test_render_mermaid_blocks_replaces_with_image(tmp_path):
     assert "![](" in out
     assert len(calls) == 1
     assert calls[0][0] == "graph TD; A-->B"
+
+
+def test_build_frontmatter_quotes_scalars_and_blocks_abstract():
+    meta = {
+        "title": 'Titel mit "Anführung"',
+        "author": "Petr Nasybulin 478314, Philipp Gembruch 472685",
+        "dateline": "RWTH Aachen, Juni 2026",
+        "abstract": "Zeile eins.\nZeile zwei.",
+    }
+    fm = pre.build_frontmatter(meta)
+    assert fm.startswith("---\n")
+    assert fm.rstrip().endswith("---")
+    assert 'title: "Titel mit \\"Anführung\\""' in fm
+    assert "author: \"Petr Nasybulin 478314, Philipp Gembruch 472685\"" in fm
+    assert "dateline: \"RWTH Aachen, Juni 2026\"" in fm
+    assert "abstract: |" in fm
+    assert "  Zeile eins." in fm
+    assert "  Zeile zwei." in fm
+
+
+def test_build_frontmatter_omits_empty_fields():
+    fm = pre.build_frontmatter({"title": "T", "author": "", "dateline": "", "abstract": ""})
+    assert "title:" in fm
+    assert "author:" not in fm
+    assert "abstract:" not in fm
