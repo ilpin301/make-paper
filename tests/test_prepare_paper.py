@@ -88,3 +88,17 @@ def test_collect_wiki_sources_returns_md_excluding_index(tmp_path):
     sources = pp.collect_wiki_sources(tmp_path)
     names = sorted(p.name for p in sources)
     assert names == ["a.md", "b.md"]
+
+
+def test_stage_samples_renames_zero_padded_keeps_extension(tmp_path):
+    src = tmp_path / "Samples"
+    src.mkdir()
+    (src / "zeta.md").write_text("z", encoding="utf-8")
+    (src / "alpha.docx").write_text("a", encoding="utf-8")
+    dest = tmp_path / "staging"
+
+    staged = pp.stage_samples([src / "alpha.docx", src / "zeta.md"], dest)
+    names = [p.name for p in staged]
+    assert names == ["sample-01.docx", "sample-02.md"]
+    assert (dest / "sample-01.docx").read_text(encoding="utf-8") == "a"
+    assert (dest / "sample-02.md").read_text(encoding="utf-8") == "z"

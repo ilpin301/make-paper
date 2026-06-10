@@ -3,6 +3,7 @@ compute the German dateline, and emit a JSON manifest for the subagent."""
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -89,3 +90,15 @@ def collect_wiki_sources(project_path: Path) -> list[Path]:
     return sorted(
         p for p in wiki.rglob("*.md") if p.name.lower() != "index.md"
     )
+
+
+def stage_samples(samples: list[Path], dest_dir: Path) -> list[Path]:
+    """Copy each sample to dest as sample-NN.<ext> (1-based, zero-padded)."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    width = max(2, len(str(len(samples))))
+    staged: list[Path] = []
+    for i, src in enumerate(samples, start=1):
+        target = dest_dir / f"sample-{i:0{width}d}{src.suffix}"
+        shutil.copyfile(src, target)
+        staged.append(target)
+    return staged
