@@ -63,3 +63,49 @@ def test_template_compiles_minimal_doc(tmp_path):
     cmd = rp.build_pandoc_cmd(md, out, template, tmp_path)
     subprocess.run(cmd, check=True)
     assert out.is_file() and out.stat().st_size > 1000
+
+
+def test_render_pipeline_writes_processed_md_and_calls_pandoc(tmp_path, monkeypatch):
+    project = tmp_path / "proj"
+    project.mkdir()
+    report = project / "report.md"
+    report.write_text(
+        "# Mein Titel\n\n## Zusammenfassung\nKurz.\n\n## 1. Einleitung\nText.\n\n"
+        "```mermaid\ngraph TD; A-->B\n```\n",
+        encoding="utf-8",
+    )
+    calls = {}
+
+    def fake_run(cmd, check):
+        calls["cmd"] = cmd
+        Path(cmd[cmd.index("-o") + 1]).write_bytes(b"%PDF-fake-output")
+
+    def fake_mmdc(code, out_path):
+        Path(out_path).write_bytes(b"%PDF-fake-diagram")
+
+    out_pdf = project / "out.pdf"
+    result = rp.render(
+        report, out_pdf, project,
+        title=None, authors="Max Mustermann", dateline="RWTH Aachen, Juni 2026",
+        run=fake_run, mmdc_runner=fake_mmdc,
+    )
+    assert result == out_pdf
+    processed = (project / ".render" / "processed.md").read_text(encoding="utf-8")
+    assert 'title: "Mein Titel"' in processed
+    assert 'author: "Max Mustermann"' in processed
+    assert "abstract: |" in processed
+    assert "## Einleitung" in processed       # number stripped
+    assert "```mermaid" not in processed      # diagram replaced
+    assert calls["cmd"][0] == "pandoc"
+    assert str(out_pdf) in calls["cmd"]
+
+
+def test_main_errors_when_tools_missing(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(rp, "check_dependencies", lambda which=None: ["tectonic"])
+    rc = rp.main([
+        "--input", str(tmp_path / "r.md"),
+        "--output", str(tmp_path / "o.pdf"),
+        "--project", str(tmp_path),
+    ])
+    assert rc == 2
+    assert "tectonic" in capsys.readouterr().err
