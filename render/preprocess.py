@@ -83,3 +83,29 @@ def resolve_images(md: str, project_root: Path) -> tuple[str, list[str]]:
         return m.group(0)
 
     return _IMG.sub(repl, md), missing
+
+
+_MERMAID = re.compile(r"^```mermaid[ \t]*\n(.*?)\n```[ \t]*$", re.MULTILINE | re.DOTALL)
+
+
+def iter_mermaid_blocks(md: str) -> list[str]:
+    """Return the code body of each ```mermaid fenced block, in order."""
+    return [m.group(1) for m in _MERMAID.finditer(md)]
+
+
+def render_mermaid_blocks(md: str, out_dir: Path, runner) -> str:
+    """Replace each ```mermaid block with an image link, rendering via `runner`.
+
+    `runner(code: str, out_path: Path) -> None` produces an image file at out_path.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    def repl(m: re.Match) -> str:
+        code = m.group(1)
+        digest = hashlib.sha1(code.encode("utf-8")).hexdigest()[:12]
+        out_path = out_dir / f"mermaid-{digest}.pdf"
+        runner(code, out_path)
+        return f"![]({out_path.as_posix()})"
+
+    return _MERMAID.sub(repl, md)

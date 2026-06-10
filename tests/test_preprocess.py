@@ -61,3 +61,23 @@ def test_resolve_images_rewrites_existing_relative_paths(tmp_path):
     assert "img/missing.png" in out          # left untouched
     assert "https://x/y.png" in out          # URL untouched
     assert missing == ["img/missing.png"]
+
+
+def test_iter_mermaid_blocks_returns_code():
+    md = "Vor\n```mermaid\ngraph TD; A-->B\n```\nNach\n"
+    assert pre.iter_mermaid_blocks(md) == ["graph TD; A-->B"]
+
+
+def test_render_mermaid_blocks_replaces_with_image(tmp_path):
+    md = "```mermaid\ngraph TD; A-->B\n```\n"
+    calls = []
+
+    def fake_runner(code, out_path):
+        calls.append((code, out_path))
+        Path(out_path).write_bytes(b"%PDF-fake")
+
+    out = pre.render_mermaid_blocks(md, tmp_path / "figures", fake_runner)
+    assert "```mermaid" not in out
+    assert "![](" in out
+    assert len(calls) == 1
+    assert calls[0][0] == "graph TD; A-->B"
