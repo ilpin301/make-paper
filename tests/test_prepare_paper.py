@@ -31,3 +31,44 @@ def test_parse_authors_falls_back_to_dateline_line():
     names, institution = pp.parse_authors(md)
     assert names == ["Max Mustermann"]
     assert institution == "RWTH Aachen"
+
+
+def _make_sample(dirpath: Path, name: str):
+    dirpath.mkdir(parents=True, exist_ok=True)
+    (dirpath / name).write_text("x", encoding="utf-8")
+
+
+def test_resolve_assets_prefers_project_over_global(tmp_path):
+    project = tmp_path / "proj"
+    glob = tmp_path / "global"
+    _make_sample(project / "Samples", "a.md")
+    (project / "Authors").mkdir(parents=True)
+    (project / "Authors" / "authors.md").write_text("- A\ninstitution: X", encoding="utf-8")
+    _make_sample(glob / "Samples", "g.md")
+    (glob / "authors.md").write_text("- G\ninstitution: Y", encoding="utf-8")
+
+    assets = pp.resolve_assets(project, glob)
+    assert assets.samples_dir == project / "Samples"
+    assert assets.authors_file == project / "Authors" / "authors.md"
+
+
+def test_resolve_assets_falls_back_to_global(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    glob = tmp_path / "global"
+    _make_sample(glob / "Samples", "g.md")
+    (glob / "authors.md").write_text("- G\ninstitution: Y", encoding="utf-8")
+
+    assets = pp.resolve_assets(project, glob)
+    assert assets.samples_dir == glob / "Samples"
+    assert assets.authors_file == glob / "authors.md"
+
+
+def test_resolve_assets_raises_when_nothing_found(tmp_path):
+    project = tmp_path / "proj"
+    project.mkdir()
+    glob = tmp_path / "global"
+    glob.mkdir()
+    import pytest
+    with pytest.raises(FileNotFoundError):
+        pp.resolve_assets(project, glob)
