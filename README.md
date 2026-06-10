@@ -12,7 +12,10 @@ Generate a German-language paper from any LLM-wiki project via NotebookLM.
 ## Use
 In any wiki project, say "make paper". The main agent asks which profile and
 notebook name, then delegates to the `make-paper` subagent, which produces a
-German Markdown report in the project's `Papers/` folder.
+German Markdown report in the project's `Papers/` folder **and automatically
+renders it to a styled PDF** (Subsystem B). If the PDF toolchain isn't installed,
+it falls back to the Markdown and tells you what to install. The main agent then
+opens the PDF (or the Markdown).
 
 ## Tests
 `python -m pytest tests -v`
@@ -23,7 +26,8 @@ to a styled PDF.
 
 ## Subsystem B — render to PDF
 
-After Subsystem A writes `Papers/<name>.md`, render it to a styled PDF:
+The subagent runs this automatically after the report downloads. To render a
+report by hand (or re-render after edits):
 
 ```powershell
 python "$env:USERPROFILE\.claude\make-paper\render\render_paper.py" `

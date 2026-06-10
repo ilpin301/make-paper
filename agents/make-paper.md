@@ -7,7 +7,8 @@ description: >-
   (this subagent cannot ask the user anything): ask the user (1) which notebooklm
   profile / Google account and (2) the desired notebook name, then delegate
   passing the project path, the profile, and the notebook name in the task
-  prompt. When this agent returns, open the downloaded report for the user.
+  prompt. When this agent returns, open the produced PDF for the user (or the
+  Markdown report if it reports that PDF rendering was skipped).
 model: claude-sonnet-4-6
 ---
 
@@ -20,8 +21,10 @@ return an error asking the main agent to supply it — never attempt to ask the
 user yourself.
 
 Output of this subagent is a **German Markdown report** downloaded into the
-project's `Papers/` folder. (Styled-PDF rendering is a separate tool, subsystem
-B, and is out of scope here.)
+project's `Papers/` folder, which you then **render to a styled PDF** via the
+Subsystem-B renderer (`render/render_paper.py`). The Markdown is the canonical
+artifact; the PDF is a rendering of it. If the PDF toolchain is unavailable, the
+Markdown still stands on its own.
 
 ## Steps (in order — stop and report on any failure)
 
@@ -95,7 +98,28 @@ B, and is out of scope here.)
      -n NOTEBOOK_ID
    ```
 
-8. **Clean up** the staging dir `<project_path>\Papers\.staging`.
+8. **Render the PDF (Subsystem B).** Join `author_names` from the manifest with
+   `", "` into AUTHOR_LINE, then run the renderer:
+   ```
+   python "%USERPROFILE%\.claude\make-paper\render\render_paper.py" \
+     --input  "<project_path>\Papers\<notebook_name>.md" \
+     --output "<project_path>\Papers\<notebook_name>.pdf" \
+     --project "<project_path>" \
+     --authors "<AUTHOR_LINE>" --dateline "<dateline>"
+   ```
+   This needs `pandoc`, `tectonic`, and `mmdc` on PATH (Tectonic fetches packages
+   on first run). Handle the result:
+   - Exit 0 (prints `Wrote …pdf`): the PDF is the primary deliverable.
+   - Exit 2 (prints `Missing tools: …`) or any other failure: do NOT abort. The
+     Markdown report is already downloaded and is the deliverable; record that PDF
+     rendering was skipped and include the renderer's message (e.g. which tools to
+     install: `winget install JohnMacFarlane.Pandoc TectonicProject.Tectonic` and
+     `npm install -g @mermaid-js/mermaid-cli`).
 
-9. **Return a summary**: notebook ID/URL, the downloaded `.md` path, source
-   counts, and a note that PDF rendering (subsystem B) is a separate step.
+9. **Clean up** the staging dir `<project_path>\Papers\.staging` and the
+   renderer's work dir `<project_path>\Papers\.render`.
+
+10. **Return a summary**: notebook ID/URL, the downloaded `.md` path, the rendered
+    `.pdf` path (or a clear note that PDF rendering was skipped + why), and source
+    counts. Tell the main agent which file to open — the `.pdf` if it was produced,
+    otherwise the `.md`.
