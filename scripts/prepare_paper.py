@@ -2,6 +2,7 @@
 compute the German dateline, and emit a JSON manifest for the subagent."""
 from __future__ import annotations
 
+import re
 from datetime import date
 
 GERMAN_MONTHS = [
@@ -20,3 +21,22 @@ def german_month(month: int) -> str:
 def german_dateline(institution: str, today: date) -> str:
     """e.g. ('RWTH Aachen', 2026-06-10) -> 'RWTH Aachen, Juni 2026'."""
     return f"{institution}, {german_month(today.month)} {today.year}"
+
+
+def parse_authors(md_text: str) -> tuple[list[str], str]:
+    """Return (author_names, institution) parsed from an authors.md body."""
+    names: list[str] = []
+    institution = ""
+    for raw in md_text.splitlines():
+        line = raw.strip()
+        if line.startswith("- "):
+            names.append(line[2:].strip())
+        elif line.lower().startswith("institution:"):
+            institution = line.split(":", 1)[1].strip()
+    if not institution:
+        for raw in md_text.splitlines():
+            m = re.match(r"^(.*?),\s*[A-Za-zÄÖÜäöü]+\s+\d{4}\s*$", raw.strip())
+            if m:
+                institution = m.group(1).strip()
+                break
+    return names, institution

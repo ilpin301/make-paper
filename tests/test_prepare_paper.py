@@ -17,3 +17,17 @@ def test_german_month_returns_native_name():
 def test_german_dateline_uses_current_month_and_year():
     line = pp.german_dateline("RWTH Aachen", date(2026, 6, 10))
     assert line == "RWTH Aachen, Juni 2026"
+
+
+def test_parse_authors_reads_names_and_institution_field():
+    md = "# Authors\n- Max Mustermann\n- Erika Musterfrau\n\ninstitution: RWTH Aachen\n"
+    names, institution = pp.parse_authors(md)
+    assert names == ["Max Mustermann", "Erika Musterfrau"]
+    assert institution == "RWTH Aachen"
+
+
+def test_parse_authors_falls_back_to_dateline_line():
+    md = "- Max Mustermann\n\nRWTH Aachen, Juni 2026\n"
+    names, institution = pp.parse_authors(md)
+    assert names == ["Max Mustermann"]
+    assert institution == "RWTH Aachen"
