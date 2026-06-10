@@ -15,3 +15,18 @@ def test_strip_heading_numbers_removes_leading_numbers():
     assert "# Titel" in out
     # body text containing a number must be untouched
     assert "Text 1. bleibt." in out
+
+
+def test_extract_title_pulls_first_h1_and_removes_it():
+    md = "# Mein Titel\n\n## Einleitung\nText\n"
+    title, body = pre.extract_title(md)
+    assert title == "Mein Titel"
+    assert "# Mein Titel" not in body
+    assert "## Einleitung" in body
+
+
+def test_extract_title_ignores_h2_and_returns_none():
+    md = "## Einleitung\nText\n"
+    title, body = pre.extract_title(md)
+    assert title is None
+    assert body == md
