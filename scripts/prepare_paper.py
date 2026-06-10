@@ -79,3 +79,13 @@ def resolve_assets(project_path: Path, global_root: Path) -> Assets:
         )
 
     return Assets(samples_dir=samples_dir, authors_file=authors_file)
+
+
+def collect_wiki_sources(project_path: Path) -> list[Path]:
+    """All compiled Wiki notes (*.md under Wiki/), excluding index.md files."""
+    wiki = project_path / "Wiki"
+    if not wiki.is_dir():
+        return []
+    return sorted(
+        p for p in wiki.rglob("*.md") if p.name.lower() != "index.md"
+    )

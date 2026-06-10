@@ -72,3 +72,19 @@ def test_resolve_assets_raises_when_nothing_found(tmp_path):
     import pytest
     with pytest.raises(FileNotFoundError):
         pp.resolve_assets(project, glob)
+
+
+def test_collect_wiki_sources_returns_md_excluding_index(tmp_path):
+    wiki = tmp_path / "Wiki" / "Topics"
+    wiki.mkdir(parents=True)
+    (wiki / "a.md").write_text("a", encoding="utf-8")
+    (wiki / "index.md").write_text("nav", encoding="utf-8")
+    (tmp_path / "Wiki" / "Concepts").mkdir()
+    (tmp_path / "Wiki" / "Concepts" / "b.md").write_text("b", encoding="utf-8")
+    # noise outside Wiki/ must be ignored
+    (tmp_path / "Raw").mkdir()
+    (tmp_path / "Raw" / "c.md").write_text("c", encoding="utf-8")
+
+    sources = pp.collect_wiki_sources(tmp_path)
+    names = sorted(p.name for p in sources)
+    assert names == ["a.md", "b.md"]
