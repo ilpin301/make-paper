@@ -37,7 +37,7 @@ def test_run_mmdc_invokes_mmdc_with_io(tmp_path):
         seen["check"] = check
 
     out = tmp_path / "d.pdf"
-    rp.run_mmdc("graph TD; A-->B", out, run=fake_run)
+    rp.run_mmdc("graph TD; A-->B", out, run=fake_run, which=lambda name: name)
     assert seen["argv"][0] == "mmdc"
     assert "-i" in seen["argv"] and "-o" in seen["argv"]
     assert str(out) in seen["argv"]
@@ -109,3 +109,22 @@ def test_main_errors_when_tools_missing(monkeypatch, tmp_path, capsys):
     ])
     assert rc == 2
     assert "tectonic" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")
+def test_end_to_end_render_real_pdf(tmp_path):
+    import pypdf
+    fixture = Path(__file__).parent / "fixtures" / "report_de.md"
+    out = tmp_path / "paper.pdf"
+    rp.render(
+        fixture, out, tmp_path,
+        authors="Petr Nasybulin 478314, Philipp Gembruch 472685",
+        dateline="RWTH Aachen, Juni 2026",
+    )
+    assert out.is_file() and out.stat().st_size > 2000
+    reader = pypdf.PdfReader(str(out))
+    assert len(reader.pages) >= 1
+    text = "".join((p.extract_text() or "") for p in reader.pages)
+    # ligature-free terms (the serif font renders 'ffi' as one glyph)
+    assert "Absorptionsspektroskopie" in text
+    assert "Lambert-Beersche" in text

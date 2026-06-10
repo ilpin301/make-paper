@@ -24,7 +24,11 @@
 % --- Pandoc compatibility shims ---
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
-\providecommand{\pandocbounded}[1]{#1}
+% Scale oversized images (e.g. wide Mermaid diagrams) down to the text width.
+\providecommand{\pandocbounded}[1]{%
+  \begingroup\sbox0{#1}%
+  \ifdim\wd0>\linewidth \resizebox{\linewidth}{!}{\usebox0}\else \usebox0\fi
+  \endgroup}
 $if(highlighting-macros)$
 $highlighting-macros$
 $endif$

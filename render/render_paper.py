@@ -33,16 +33,25 @@ def build_pandoc_cmd(input_path, output_path, template_path, resource_path) -> l
     ]
 
 
-def run_mmdc(code: str, out_path, run=subprocess.run) -> None:
-    """Render Mermaid `code` to `out_path` (PDF) using the mmdc CLI."""
+def run_mmdc(code: str, out_path, run=subprocess.run, which=shutil.which) -> None:
+    """Render Mermaid `code` to `out_path` (PDF) using the mmdc CLI.
+
+    Resolves `mmdc` via `which` because on Windows it is a `.cmd` shim, which
+    CreateProcess cannot launch directly (only `.exe` is auto-resolved); such
+    shims are run through `cmd /c`.
+    """
     out_path = Path(out_path)
     with tempfile.NamedTemporaryFile(
         "w", suffix=".mmd", delete=False, encoding="utf-8"
     ) as f:
         f.write(code)
         src = Path(f.name)
+    exe = which("mmdc") or "mmdc"
+    args = [exe, "-i", str(src), "-o", str(out_path), "-b", "transparent"]
+    if exe.lower().endswith((".cmd", ".bat")):
+        args = ["cmd", "/c", *args]
     try:
-        run(["mmdc", "-i", str(src), "-o", str(out_path), "-b", "transparent"], check=True)
+        run(args, check=True)
     finally:
         src.unlink(missing_ok=True)
 
