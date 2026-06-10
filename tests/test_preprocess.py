@@ -30,3 +30,23 @@ def test_extract_title_ignores_h2_and_returns_none():
     title, body = pre.extract_title(md)
     assert title is None
     assert body == md
+
+
+def test_extract_abstract_pulls_named_section():
+    md = (
+        "## Zusammenfassung\n"
+        "Dies ist die Kurzfassung.\n\n"
+        "## Einleitung\n"
+        "Der eigentliche Text.\n"
+    )
+    abstract, body = pre.extract_abstract(md)
+    assert abstract == "Dies ist die Kurzfassung."
+    assert "Zusammenfassung" not in body
+    assert "## Einleitung" in body
+
+
+def test_extract_abstract_returns_none_when_absent():
+    md = "## Einleitung\nText\n"
+    abstract, body = pre.extract_abstract(md)
+    assert abstract is None
+    assert body == md

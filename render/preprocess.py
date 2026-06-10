@@ -29,3 +29,33 @@ def extract_title(md: str) -> tuple[str | None, str]:
             del lines[i]
             return m.group(1), "\n".join(lines)
     return None, md
+
+
+_HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
+_ABSTRACT_TITLES = {"abstract", "zusammenfassung", "kurzfassung"}
+
+
+def extract_abstract(md: str) -> tuple[str | None, str]:
+    """Pull out a leading Abstract/Zusammenfassung/Kurzfassung section.
+
+    Returns (abstract_text, body_without_that_section). The abstract spans from
+    just after its heading to the next heading of the same or higher level.
+    """
+    lines = md.splitlines()
+    start = level = None
+    for i, line in enumerate(lines):
+        m = _HEADING.match(line)
+        if m and m.group(2).strip().lower() in _ABSTRACT_TITLES:
+            start, level = i, len(m.group(1))
+            break
+    if start is None:
+        return None, md
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        m = _HEADING.match(lines[j])
+        if m and len(m.group(1)) <= level:
+            end = j
+            break
+    abstract = "\n".join(lines[start + 1:end]).strip()
+    body = "\n".join(lines[:start] + lines[end:]).strip("\n")
+    return abstract, body
