@@ -42,3 +42,24 @@ def test_run_mmdc_invokes_mmdc_with_io(tmp_path):
     assert "-i" in seen["argv"] and "-o" in seen["argv"]
     assert str(out) in seen["argv"]
     assert seen["check"] is True
+
+
+import subprocess
+import pytest
+
+
+@pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")
+def test_template_compiles_minimal_doc(tmp_path):
+    template = Path(rp.__file__).parent / "templates" / "paper.latex"
+    md = tmp_path / "doc.md"
+    md.write_text(
+        '---\ntitle: "Test"\nauthor: "Max Mustermann"\n'
+        'dateline: "RWTH Aachen, Juni 2026"\nabstract: |\n  Eine Kurzfassung.\n---\n\n'
+        "# Abschnitt\n\nText mit Umlauten: äöü.\n\n"
+        "| a | b |\n|---|---|\n| 1 | 2 |\n\nTabelle oben.\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "doc.pdf"
+    cmd = rp.build_pandoc_cmd(md, out, template, tmp_path)
+    subprocess.run(cmd, check=True)
+    assert out.is_file() and out.stat().st_size > 1000

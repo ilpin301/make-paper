@@ -1,0 +1,49 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{fontspec}
+% Reference the TeX Gyre Termes (Times-like) OTFs by filename so the Tectonic
+% bundle supplies them — avoids depending on an OS-installed font by name.
+\setmainfont{texgyretermes}[
+  Extension = .otf,
+  UprightFont = *-regular,
+  BoldFont = *-bold,
+  ItalicFont = *-italic,
+  BoldItalicFont = *-bolditalic,
+]
+\usepackage{polyglossia}
+\setdefaultlanguage{german}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage[hidelinks]{hyperref}
+
+% --- Pandoc compatibility shims ---
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\pandocbounded}[1]{#1}
+$if(highlighting-macros)$
+$highlighting-macros$
+$endif$
+
+\setlength{\parindent}{1em}
+
+\title{$if(title)$$title$$else$\enspace$endif$}
+\author{$if(author)$$author$$endif$$if(dateline)$ \\[2pt] \normalsize $dateline$$endif$}
+\date{}
+
+\begin{document}
+\maketitle
+
+$if(abstract)$
+\begin{abstract}
+$abstract$
+\end{abstract}
+$endif$
+
+$body$
+
+\end{document}
