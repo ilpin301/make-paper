@@ -167,3 +167,78 @@ def test_inject_autodetected_charts_skips_failed_renders(tmp_path):
         md, tmp_path, lambda spec, p: None, lambda text: [(object(), 4)]
     )
     assert "![](" not in out
+
+
+AUTHORS = "Petr Nasybulin 478314, Philipp Gembruch 472685"
+DATELINE = "RWTH Aachen, Juni 2026"
+
+
+def test_strip_author_lines_removes_bold_duplicates():
+    md = f"**{AUTHORS}**\n**{DATELINE}**\n\n## Einleitung\nText über {DATELINE}.\n"
+    out = pre.strip_author_lines(md, AUTHORS, DATELINE)
+    assert AUTHORS not in out.split("## Einleitung")[0]
+    assert "## Einleitung" in out
+    assert f"Text über {DATELINE}." in out
+
+
+def test_strip_author_lines_only_before_first_heading():
+    md = f"## Anhang\n{AUTHORS}\n"
+    out = pre.strip_author_lines(md, AUTHORS, DATELINE)
+    assert AUTHORS in out
+
+
+def test_strip_author_lines_noop_without_matches():
+    md = "Ganz normaler Text.\n\n## Einleitung\n"
+    assert pre.strip_author_lines(md, AUTHORS, DATELINE) == md
+
+
+def test_strip_author_lines_noop_with_empty_args():
+    md = f"**{AUTHORS}**\n\n## E\n"
+    assert pre.strip_author_lines(md, "", "") == md
+
+
+def test_promote_headings_shifts_h3_to_h1():
+    md = "### Einleitung\nText\n#### Detail\n### Fazit\n"
+    out = pre.promote_headings(md)
+    assert "# Einleitung" in out and "## Detail" in out and "# Fazit" in out
+    assert "###" not in out
+
+
+def test_promote_headings_noop_when_h1_present():
+    md = "# Einleitung\n### Detail\n"
+    assert pre.promote_headings(md) == md
+
+
+def test_promote_headings_ignores_code_fences():
+    md = "```paperchart\n### not a heading\n```\n## Echt\n"
+    out = pre.promote_headings(md)
+    assert "### not a heading" in out and "# Echt" in out
+
+
+REFS_MD = (
+    "# Einleitung\nText.\n\n"
+    "# Literaturverzeichnis\n"
+    "1. RWTH Aachen: Anleitung. Aachen.\n"
+    "2. Messprotokoll intern.\n\n"
+    "# Fazit\nSchluss.\n"
+)
+
+
+def test_move_references_last_moves_and_renumbers():
+    out = pre.move_references_last(REFS_MD)
+    assert out.rstrip().endswith("*[2] Messprotokoll intern.*")
+    assert "*[1] RWTH Aachen: Anleitung. Aachen.*" in out
+    assert "1. RWTH" not in out
+    assert out.index("# Fazit") < out.index("# Literaturverzeichnis {-}")
+
+
+def test_move_references_handles_bullets_and_alt_titles():
+    md = "# A\n\n## Quellen\n- Erste Quelle\n- Zweite Quelle\n\n# B\nText.\n"
+    out = pre.move_references_last(md)
+    assert out.index("# B") < out.index("# Literaturverzeichnis {-}")
+    assert "*[1] Erste Quelle*" in out and "*[2] Zweite Quelle*" in out
+
+
+def test_move_references_noop_when_absent():
+    md = "# A\nText ohne Quellenangaben.\n"
+    assert pre.move_references_last(md) == md

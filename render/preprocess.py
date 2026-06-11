@@ -111,6 +111,97 @@ def render_mermaid_blocks(md: str, out_dir: Path, runner) -> str:
     return _MERMAID.sub(repl, md)
 
 
+def strip_author_lines(md: str, authors: str, dateline: str) -> str:
+    """Drop pre-heading lines duplicating the authors line or the dateline.
+
+    Only exact content matches (emphasis markers and whitespace ignored) in
+    the region BEFORE the first ATX heading are removed — the title block
+    already carries authors + dateline (styling rule 3).
+    """
+    targets = {" ".join(t.split()) for t in (authors, dateline) if t and t.strip()}
+    if not targets:
+        return md
+    out = []
+    seen_heading = False
+    for line in md.splitlines():
+        if _HEADING.match(line):
+            seen_heading = True
+        if not seen_heading:
+            content = " ".join(line.replace("*", "").replace("_", "").split())
+            if content in targets:
+                continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def promote_headings(md: str) -> str:
+    """Uniformly shift ATX headings so the smallest level present becomes 1.
+
+    Gives --number-sections the 1 / 1.1 / 1.1.1 scheme (styling rule 8).
+    Fenced code blocks are left untouched.
+    """
+    lines = md.splitlines()
+    in_fence = False
+    levels = []
+    for line in lines:
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence and (m := _HEADING.match(line)):
+            levels.append(len(m.group(1)))
+    shift = min(levels) - 1 if levels else 0
+    if shift <= 0:
+        return md
+    out = []
+    in_fence = False
+    for line in lines:
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence and (m := _HEADING.match(line)):
+            line = "#" * (len(m.group(1)) - shift) + " " + m.group(2)
+        out.append(line)
+    return "\n".join(out)
+
+
+_REF_TITLES = {"literaturverzeichnis", "literatur", "quellen", "referenzen"}
+_REF_ENTRY = re.compile(r"^\s*(?:\d+[.)]|[-*+])\s+(.*\S)\s*$")
+
+
+def move_references_last(md: str) -> str:
+    """Move the references section to the end; entries become '*[n] …*'.
+
+    The section is retitled to an unnumbered '# Literaturverzeichnis {-}'
+    (styling rule 4). Recognized titles: Literaturverzeichnis, Literatur,
+    Quellen, Referenzen. Absent section → no-op.
+    """
+    lines = md.splitlines()
+    start = level = None
+    for i, line in enumerate(lines):
+        m = _HEADING.match(line)
+        if m and m.group(2).strip().lower() in _REF_TITLES:
+            start, level = i, len(m.group(1))
+            break
+    if start is None:
+        return md
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        m = _HEADING.match(lines[j])
+        if m and len(m.group(1)) <= level:
+            end = j
+            break
+    entries = []
+    for line in lines[start + 1:end]:
+        if not line.strip():
+            continue
+        m = _REF_ENTRY.match(line)
+        entries.append(m.group(1) if m else line.strip())
+    body = lines[:start] + lines[end:]
+    while body and not body[-1].strip():
+        body.pop()
+    out = body + ["", "# Literaturverzeichnis {-}", ""]
+    out += [f"*[{n}] {text}*" for n, text in enumerate(entries, 1)]
+    return "\n".join(out) + "\n"
+
+
 _PAPERCHART = re.compile(r"^```paperchart[ \t]*\n(.*?)\n```[ \t]*$", re.MULTILINE | re.DOTALL)
 
 
