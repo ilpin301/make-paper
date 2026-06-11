@@ -1,4 +1,4 @@
-\documentclass[a4paper,11pt]{article}
+\documentclass[a4paper,11pt$if(classoption)$,$classoption$$endif$]{article}
 
 \usepackage{fontspec}
 % Reference the TeX Gyre Termes (Times-like) OTFs by filename so the Tectonic
@@ -19,6 +19,7 @@
 \usepackage{longtable}
 \usepackage{array}
 \usepackage{calc} % pandoc emits (\linewidth - X\tabcolsep) * \real{...} column widths
+\setlength{\columnsep}{0.8cm}
 \usepackage[a4paper,margin=2.3cm]{geometry}
 \usepackage[hidelinks]{hyperref}
 

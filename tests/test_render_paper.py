@@ -128,3 +128,32 @@ def test_end_to_end_render_real_pdf(tmp_path):
     # ligature-free terms (the serif font renders 'ffi' as one glyph)
     assert "Absorptionsspektroskopie" in text
     assert "Lambert-Beersche" in text
+
+
+import shutil
+
+TABLE_MD = (
+    "| Komponente | Pfad |\n|---|---|\n| Wiki | /wiki |\n| Schema | /schema |\n| Skripte | /scripts |\n"
+    "\nText.\n\n"
+    "| A | B | C | D |\n|---|---|---|---|\n| 1 | 2 | 3 | 4 |\n| 5 | 6 | 7 | 8 |\n| 9 | 10 | 11 | 12 |\n"
+)
+
+needs_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None, reason="pandoc not installed")
+
+
+@needs_pandoc
+def test_lua_filter_converts_tables_to_floats(tmp_path):
+    filt = Path(rp.__file__).parent / "filters" / "twocolumn_tables.lua"
+    src = tmp_path / "t.md"
+    src.write_text(TABLE_MD, encoding="utf-8")
+    out = subprocess.run(
+        ["pandoc", str(src), "-t", "latex", "--lua-filter", str(filt)],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    assert "longtable" not in out
+    assert "\\begin{tabular}" in out
+    assert "\\begin{table}[t]" in out      # 2-column table -> column float
+    assert "\\begin{table*}[t]" in out     # 4-column table -> spanning float
+    assert "\\endhead" not in out and "\\endlastfoot" not in out
+    # \bottomrule must come after the body rows, before \end{tabular}
+    assert out.index("Skripte") < out.index("\\bottomrule")
