@@ -111,6 +111,49 @@ def render_mermaid_blocks(md: str, out_dir: Path, runner) -> str:
     return _MERMAID.sub(repl, md)
 
 
+_PAPERCHART = re.compile(r"^```paperchart[ \t]*\n(.*?)\n```[ \t]*$", re.MULTILINE | re.DOTALL)
+
+
+def render_paperchart_blocks(md: str, out_dir: Path, runner) -> tuple[str, int]:
+    """Replace each ```paperchart block via `runner(code, out_path) -> path|None`.
+
+    None (parse/render failure) drops the block from the document. Returns
+    (rewritten_md, total_blocks_found) — the count includes failed blocks so
+    the caller can decide whether the auto-detect fallback applies.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+
+    def repl(m: re.Match) -> str:
+        nonlocal count
+        count += 1
+        code = m.group(1)
+        digest = hashlib.sha1(code.encode("utf-8")).hexdigest()[:12]
+        result = runner(code, out_dir / f"chart-{digest}.pdf")
+        return f"![]({Path(result).as_posix()})" if result else ""
+
+    return _PAPERCHART.sub(repl, md), count
+
+
+def inject_autodetected_charts(md: str, out_dir: Path, runner, detect) -> str:
+    """Insert auto-detected chart figures after their source tables.
+
+    `detect(md)` yields (spec, last_table_line_index); `runner(spec, out_path)`
+    returns the figure path or None (skip). Insertions go bottom-up so earlier
+    indices stay valid.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    lines = md.splitlines()
+    found = detect(md)
+    for n, (spec, end_idx) in zip(range(len(found), 0, -1), reversed(found)):
+        result = runner(spec, out_dir / f"autochart-{n:02d}.pdf")
+        if result:
+            lines[end_idx + 1:end_idx + 1] = ["", f"![]({Path(result).as_posix()})"]
+    return "\n".join(lines)
+
+
 def _yaml_scalar(value: str) -> str:
     """Double-quote a YAML scalar, escaping backslashes and quotes."""
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')

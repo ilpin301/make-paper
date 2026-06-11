@@ -106,3 +106,64 @@ def test_build_frontmatter_omits_empty_fields():
     assert "title:" in fm
     assert "author:" not in fm
     assert "abstract:" not in fm
+
+
+PAPERCHART_MD = (
+    "Vorher.\n\n"
+    "```paperchart\ntype: bar\nlabels: [a]\nseries: [{values: [1]}]\n```\n\n"
+    "Nachher.\n"
+)
+
+
+def test_render_paperchart_blocks_replaces_with_figure(tmp_path):
+    def runner(code, out_path):
+        Path(out_path).write_bytes(b"%PDF-fake")
+        return out_path
+
+    out, count = pre.render_paperchart_blocks(PAPERCHART_MD, tmp_path, runner)
+    assert count == 1
+    assert "```paperchart" not in out
+    assert "![](" in out and ".pdf)" in out
+    assert "Vorher." in out and "Nachher." in out
+
+
+def test_render_paperchart_blocks_drops_failed_block(tmp_path):
+    out, count = pre.render_paperchart_blocks(
+        PAPERCHART_MD, tmp_path, lambda code, out_path: None
+    )
+    assert count == 1
+    assert "```paperchart" not in out
+    assert "![](" not in out
+
+
+def test_render_paperchart_blocks_counts_all_blocks(tmp_path):
+    md = PAPERCHART_MD + "\n```paperchart\nkaputt: [\n```\n"
+    out, count = pre.render_paperchart_blocks(md, tmp_path, lambda c, p: None)
+    assert count == 2
+
+
+def test_inject_autodetected_charts_inserts_after_table(tmp_path):
+    md = "| K | W |\n|---|---|\n| a | 1 |\n| b | 2 |\n| c | 3 |\n\nDanach.\n"
+    fake_spec = object()
+
+    def detect(text):
+        return [(fake_spec, 4)]  # last table line index
+
+    def runner(spec, out_path):
+        assert spec is fake_spec
+        Path(out_path).write_bytes(b"%PDF-fake")
+        return out_path
+
+    out = pre.inject_autodetected_charts(md, tmp_path, runner, detect)
+    lines = out.splitlines()
+    fig_idx = next(i for i, l in enumerate(lines) if l.startswith("![]("))
+    assert fig_idx > 4
+    assert lines.index("Danach.") > fig_idx
+
+
+def test_inject_autodetected_charts_skips_failed_renders(tmp_path):
+    md = "| K | W |\n|---|---|\n| a | 1 |\n| b | 2 |\n| c | 3 |\n"
+    out = pre.inject_autodetected_charts(
+        md, tmp_path, lambda spec, p: None, lambda text: [(object(), 4)]
+    )
+    assert "![](" not in out
