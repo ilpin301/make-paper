@@ -19,13 +19,14 @@ should work analogously but is untested.
    ```
 3. **Python packages:**
    ```powershell
-   python -m pip install notebooklm-py pyyaml matplotlib
+   python -m pip install notebooklm-py pyyaml matplotlib python-docx
    ```
-   (`notebooklm-py` = Subsystem A; `pyyaml`+`matplotlib` = charts. Missing
-   chart deps degrade to a no-chart paper, never a failure. Add `pytest` to
+   (`notebooklm-py` = Subsystem A; `pyyaml`+`matplotlib` = charts —
+   missing chart deps degrade to a no-chart paper, never a failure;
+   `python-docx` = the DOCX option's two-column layout. Add `pytest` to
    run the test suite.)
 4. **PDF toolchain** (see "Subsystem B install" below for the no-winget
-   fallback; the DOCX option needs only pandoc):
+   fallback; the DOCX option needs only pandoc + `python-docx`):
    ```powershell
    winget install JohnMacFarlane.Pandoc TectonicProject.Tectonic
    npm install -g @mermaid-js/mermaid-cli
@@ -59,8 +60,10 @@ styled PDF** (Subsystem B). If the PDF toolchain isn't installed, it falls
 back to the Markdown and tells you what to install. The main agent then opens
 the PDF (or the Markdown), runs a graphics review loop (chart edits are
 local re-renders), and finally asks "Make DOCX?" — on yes it builds an
-editable Word version via `render/make_docx.py` (pandoc docx writer, PNG
-figures; the LaTeX-only looks like two-column don't carry over).
+editable Word version via `render/make_docx.py` (pandoc docx writer styled
+like the PDF via `templates/reference.docx`: Times, paper sizes/margins,
+italic abstract, table borders; PNG figures; `--layout two` gives a
+two-column body under a full-width title head).
 
 ## Tests
 `python -m pytest tests -v`
