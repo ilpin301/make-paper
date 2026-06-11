@@ -245,3 +245,11 @@ def test_move_references_handles_bullets_and_alt_titles():
 def test_move_references_noop_when_absent():
     md = "# A\nText ohne Quellenangaben.\n"
     assert pre.move_references_last(md) == md
+
+
+def test_move_references_entries_each_start_a_new_line():
+    out = pre.move_references_last(REFS_MD)
+    # hard line break (trailing backslash) after every entry but the last,
+    # so entries don't flow into one paragraph (styling rule v2.2)
+    assert "*[1] RWTH Aachen: Anleitung. Aachen.*\\\n*[2] Messprotokoll intern.*" in out
+    assert not out.rstrip().endswith("\\")

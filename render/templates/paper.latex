@@ -40,7 +40,19 @@ $endif$
 
 \setlength{\parindent}{1em}
 
-% Full-width title block + label-free italic abstract (styling rules 2+3).
+% Dot after first-level section numbers only ("1. Einleitung", "1.1 ...").
+% \thesubsection is restated without \thesection so it doesn't become "1..1".
+\renewcommand{\thesection}{\arabic{section}.}
+\renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}}
+
+% Tables carry vertical column separators; collapse booktabs' rule
+% separation so those lines meet the horizontal rules without gaps.
+\setlength{\aboverulesep}{0pt}
+\setlength{\belowrulesep}{0pt}
+\renewcommand{\arraystretch}{1.15}
+
+% Full-width title block + italic abstract under an unnumbered
+% section-style "Abstract" heading.
 \newcommand{\paperhead}{%
   \begin{center}
     {\LARGE $if(title)$$title$$else$\enspace$endif$\par}
@@ -49,7 +61,7 @@ $endif$
     $if(dateline)${\normalsize $dateline$\par}$endif$
   \end{center}
   $if(abstract)$
-  \vskip 0.6em
+  \section*{Abstract}
   {\itshape\leftskip=2em\rightskip=2em\noindent $abstract$\par}
   \vskip 1.2em
   $endif$

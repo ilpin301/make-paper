@@ -202,7 +202,9 @@ def move_references_last(md: str) -> str:
     while body and not body[-1].strip():
         body.pop()
     out = body + ["", "# Literaturverzeichnis {-}", ""]
-    out += [f"*[{n}] {text}*" for n, text in enumerate(entries, 1)]
+    # trailing backslash = pandoc hard line break, so each entry starts a new line
+    out += [f"*[{n}] {text}*" + ("\\" if n < len(entries) else "")
+            for n, text in enumerate(entries, 1)]
     return "\n".join(out) + "\n"
 
 

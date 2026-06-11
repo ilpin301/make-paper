@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 
@@ -141,12 +142,19 @@ TABLE_MD = (
 needs_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None, reason="pandoc not installed")
 
 
+WIDE_CELL_MD = (
+    "\n| Komponente | Beschreibung |\n|---|---|\n"
+    "| Wiki | Ein sehr langer Beschreibungstext der die Zeile weit ueber "
+    "zweiundsiebzig Zeichen hinaus verlaengert |\n"
+)
+
+
 @needs_pandoc
 def test_paper_style_filter_tables_and_equations(tmp_path):
     filt = Path(rp.__file__).parent / "filters" / "paper_style.lua"
     src = tmp_path / "t.md"
     src.write_text(
-        TABLE_MD + "\nFormel:\n\n$$E = m c^2$$\n\n![Testtitel](bild.pdf)\n",
+        TABLE_MD + WIDE_CELL_MD + "\nFormel:\n\n$$E = m c^2$$\n\n![Testtitel](bild.pdf)\n",
         encoding="utf-8",
     )
     out = subprocess.run(
@@ -158,7 +166,10 @@ def test_paper_style_filter_tables_and_equations(tmp_path):
     assert "\\begin{table}[t]" in out      # 2-column table -> column float
     assert "\\begin{table*}[t]" in out     # 4-column table -> spanning float
     assert "\\endhead" not in out and "\\endlastfoot" not in out
-    assert "{@{}cc@{}}" in out             # simple cols centered
+    # vertical lines between columns, none at the outer edges (rule v2.2)
+    assert "{@{}c|c@{}}" in out            # simple 2-col table
+    assert "{@{}c|c|c|c@{}}" in out        # simple 4-col table
+    assert re.search(r"\\real\{[\d.]+\}\}\|", out)   # width-managed columns
     assert out.index("Skripte") < out.index("\\bottomrule")
     # display math: numbered equation, no plain \[ block
     assert "\\begin{equation}" in out and "E = m c^2" in out
@@ -290,6 +301,18 @@ def test_render_pipeline_applies_styling_steps(tmp_path):
     assert "abstract:" in processed and "Zweite Zeile." in processed
 
 
+def test_template_has_v22_styling_declarations():
+    template = (Path(rp.__file__).parent / "templates" / "paper.latex").read_text(encoding="utf-8")
+    # rule 1: abstract gets a section-style, unnumbered heading
+    assert "\\section*{Abstract}" in template
+    # rule 2: dot after first-level section numbers only (no 1..1 leak)
+    assert "\\renewcommand{\\thesection}{\\arabic{section}.}" in template
+    assert "\\renewcommand{\\thesubsection}{\\arabic{section}.\\arabic{subsection}}" in template
+    # rule 4 support: booktabs rules must meet the new vertical lines
+    assert "\\setlength{\\aboverulesep}{0pt}" in template
+    assert "\\setlength{\\belowrulesep}{0pt}" in template
+
+
 @pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")
 @pytest.mark.parametrize("layout", ["one", "two"])
 def test_template_compiles_both_layouts_with_styling(tmp_path, layout):
@@ -297,11 +320,17 @@ def test_template_compiles_both_layouts_with_styling(tmp_path, layout):
     md.write_text(
         "# Stiltest\n\n### Abstract\nKursive Kurzfassung.\n\n"
         "### Einleitung\nText mit Formel:\n\n$$E = m c^2$$\n\n"
+        "#### Methodik\nUnterabschnitt.\n\n"
         "| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n\n"
-        "### Literaturverzeichnis\n1. Eine Quelle. Aachen.\n",
+        "### Literaturverzeichnis\n1. Eine Quelle. Aachen.\n2. Zweite Quelle. Bonn.\n",
         encoding="utf-8",
     )
     out = tmp_path / f"doc-{layout}.pdf"
     rp.render(md, out, tmp_path, authors="Anna Autor 1", dateline="RWTH, Juni 2026",
               layout=layout, charts="off")
     assert out.read_bytes()[:5] == b"%PDF-"
+    import pypdf
+    text = "".join((p.extract_text() or "") for p in pypdf.PdfReader(str(out)).pages)
+    assert "Abstract" in text          # rule 1: heading is rendered again
+    assert "1..1" not in text          # rule 2: dot only on first level
+    assert "1.1" in text               # subsection numbering intact

@@ -18,6 +18,13 @@ function Table(tbl)
   latex = latex:gsub("\\end{longtable}", "\\end{tabular}")
   -- width-managed columns: p{} -> m{} (vertical centering)
   latex = latex:gsub("\\arraybackslash}p{", "\\arraybackslash}m{")
+  -- vertical lines between columns, none at the outer edges:
+  -- simple colspecs come as one 'c' run; width-managed ones as one
+  -- '... \real{x.xxxx}}' line per column
+  latex = latex:gsub("(\\begin{tabular}{@{})(c+)(@{})", function(head, cols, tail)
+    return head .. cols:gsub("c", "c|"):sub(1, -2) .. tail
+  end)
+  latex = latex:gsub("(\\real{[%d%.]+}})(\n%s*>)", "%1|%2")
 
   -- longtable emits: header lines, \endhead, footer lines (\bottomrule),
   -- \endlastfoot, body rows. Drop the markers and move the footer to the end.
