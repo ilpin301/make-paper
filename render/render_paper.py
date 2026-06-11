@@ -30,10 +30,10 @@ def build_pandoc_cmd(input_path, output_path, template_path, resource_path,
         "--pdf-engine=tectonic",
         "--number-sections",
         f"--resource-path={resource_path}",
+        "--lua-filter", str(Path(__file__).parent / "filters" / "paper_style.lua"),
     ]
     if layout == "two":
-        lua = Path(__file__).parent / "filters" / "twocolumn_tables.lua"
-        cmd += ["--lua-filter", str(lua), "-V", "classoption=twocolumn"]
+        cmd += ["-V", "classoption=twocolumn"]
     cmd += ["-o", str(output_path)]
     return cmd
 
@@ -68,7 +68,7 @@ def run_paperchart(code: str, out_path) -> Path | None:
     try:
         spec = charts.parse_paperchart(code)
         charts.render_chart(spec, out_path)
-        return Path(out_path)
+        return Path(out_path), spec.title
     except charts.ChartSpecError as e:
         print(f"paperchart skipped: {e}", file=sys.stderr)
         return None

@@ -226,7 +226,10 @@ def render_paperchart_blocks(md: str, out_dir: Path, runner) -> tuple[str, int]:
         code = m.group(1)
         digest = hashlib.sha1(code.encode("utf-8")).hexdigest()[:12]
         result = runner(code, out_dir / f"chart-{digest}.pdf")
-        return f"![]({Path(result).as_posix()})" if result else ""
+        if not result:
+            return ""
+        path, caption = result
+        return f"![{caption}]({Path(path).as_posix()})"
 
     return _PAPERCHART.sub(repl, md), count
 
@@ -245,7 +248,8 @@ def inject_autodetected_charts(md: str, out_dir: Path, runner, detect) -> str:
     for n, (spec, end_idx) in zip(range(len(found), 0, -1), reversed(found)):
         result = runner(spec, out_dir / f"autochart-{n:02d}.pdf")
         if result:
-            lines[end_idx + 1:end_idx + 1] = ["", f"![]({Path(result).as_posix()})"]
+            caption = getattr(spec, "title", "") or ""
+            lines[end_idx + 1:end_idx + 1] = ["", f"![{caption}]({Path(result).as_posix()})"]
     return "\n".join(lines)
 
 

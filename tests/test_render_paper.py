@@ -142,35 +142,45 @@ needs_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None, reason="pandoc
 
 
 @needs_pandoc
-def test_lua_filter_converts_tables_to_floats(tmp_path):
-    filt = Path(rp.__file__).parent / "filters" / "twocolumn_tables.lua"
+def test_paper_style_filter_tables_and_equations(tmp_path):
+    filt = Path(rp.__file__).parent / "filters" / "paper_style.lua"
     src = tmp_path / "t.md"
-    src.write_text(TABLE_MD, encoding="utf-8")
+    src.write_text(
+        TABLE_MD + "\nFormel:\n\n$$E = m c^2$$\n\n![Testtitel](bild.pdf)\n",
+        encoding="utf-8",
+    )
     out = subprocess.run(
         ["pandoc", str(src), "-t", "latex", "--lua-filter", str(filt)],
         capture_output=True, text=True, check=True,
     ).stdout
+    # tables: floats, centered, no longtable leftovers
     assert "longtable" not in out
-    assert "\\begin{tabular}" in out
     assert "\\begin{table}[t]" in out      # 2-column table -> column float
     assert "\\begin{table*}[t]" in out     # 4-column table -> spanning float
     assert "\\endhead" not in out and "\\endlastfoot" not in out
-    # \bottomrule must come after the body rows, before \end{tabular}
+    assert "{@{}cc@{}}" in out             # simple cols centered
     assert out.index("Skripte") < out.index("\\bottomrule")
+    # display math: numbered equation, no plain \[ block
+    assert "\\begin{equation}" in out and "E = m c^2" in out
+    assert "\\[" not in out
+    # captioned image survives as a figure with caption
+    assert "\\caption{Testtitel" in out
 
 
 def test_build_pandoc_cmd_two_column_adds_filter_and_classoption():
     cmd = rp.build_pandoc_cmd("in.md", "out.pdf", "tpl.latex", "/proj", layout="two")
     i = cmd.index("--lua-filter")
-    assert cmd[i + 1].endswith("twocolumn_tables.lua")
+    assert cmd[i + 1].endswith("paper_style.lua")
     j = cmd.index("-V")
     assert cmd[j + 1] == "classoption=twocolumn"
     assert cmd[-2:] == ["-o", "out.pdf"]
 
 
-def test_build_pandoc_cmd_one_column_has_no_filter():
+def test_build_pandoc_cmd_one_column_has_filter_but_no_classoption():
     cmd = rp.build_pandoc_cmd("in.md", "out.pdf", "tpl.latex", "/proj", layout="one")
-    assert "--lua-filter" not in cmd and "-V" not in cmd
+    i = cmd.index("--lua-filter")
+    assert cmd[i + 1].endswith("paper_style.lua")
+    assert "-V" not in cmd
 
 
 def test_run_paperchart_returns_none_on_bad_spec(tmp_path, capsys):
@@ -233,7 +243,8 @@ def test_render_charts_auto_no_fallback_when_blocks_exist(tmp_path):
 
 def test_render_two_column_uses_filter(tmp_path):
     _, calls = _render_with_stubs(tmp_path, "# T\n\nText.\n", layout="two")
-    assert any(str(a).endswith("twocolumn_tables.lua") for a in calls["pandoc"])
+    assert any(str(a).endswith("paper_style.lua") for a in calls["pandoc"])
+    assert "classoption=twocolumn" in calls["pandoc"]
 
 
 @pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")

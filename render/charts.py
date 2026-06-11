@@ -111,8 +111,6 @@ def render_chart(spec: ChartSpec, out_path) -> None:
             ax.set_ylabel(spec.ylabel)
         if len(spec.series) > 1 and any(s.name for s in spec.series):
             ax.legend(frameon=False)
-    if spec.title:
-        ax.set_title(spec.title)
     fig.tight_layout()
     fig.savefig(out_path)
     plt.close(fig)

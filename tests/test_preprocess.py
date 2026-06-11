@@ -115,15 +115,15 @@ PAPERCHART_MD = (
 )
 
 
-def test_render_paperchart_blocks_replaces_with_figure(tmp_path):
+def test_render_paperchart_blocks_replaces_with_captioned_figure(tmp_path):
     def runner(code, out_path):
         Path(out_path).write_bytes(b"%PDF-fake")
-        return out_path
+        return out_path, "Mein Diagramm"
 
     out, count = pre.render_paperchart_blocks(PAPERCHART_MD, tmp_path, runner)
     assert count == 1
     assert "```paperchart" not in out
-    assert "![](" in out and ".pdf)" in out
+    assert "![Mein Diagramm](" in out and ".pdf)" in out
     assert "Vorher." in out and "Nachher." in out
 
 
@@ -144,7 +144,10 @@ def test_render_paperchart_blocks_counts_all_blocks(tmp_path):
 
 def test_inject_autodetected_charts_inserts_after_table(tmp_path):
     md = "| K | W |\n|---|---|\n| a | 1 |\n| b | 2 |\n| c | 3 |\n\nDanach.\n"
-    fake_spec = object()
+    class FakeSpec:
+        title = "Autotitel"
+
+    fake_spec = FakeSpec()
 
     def detect(text):
         return [(fake_spec, 4)]  # last table line index
@@ -156,7 +159,7 @@ def test_inject_autodetected_charts_inserts_after_table(tmp_path):
 
     out = pre.inject_autodetected_charts(md, tmp_path, runner, detect)
     lines = out.splitlines()
-    fig_idx = next(i for i, l in enumerate(lines) if l.startswith("![]("))
+    fig_idx = next(i for i, l in enumerate(lines) if l.startswith("![Autotitel]("))
     assert fig_idx > 4
     assert lines.index("Danach.") > fig_idx
 

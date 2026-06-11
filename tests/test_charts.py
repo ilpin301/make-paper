@@ -94,6 +94,19 @@ def test_charts_available_reports_or_none():
     assert msg is None or "pip install" in msg
 
 
+@needs_deps
+def test_render_chart_does_not_draw_title_inside(tmp_path):
+    # title belongs to the figure caption (Abbildung N: ...), not the image
+    spec = charts.ChartSpec(type="bar", labels=["a"], series=[charts.Series("", [1.0])],
+                            title="Nur als Caption")
+    out = tmp_path / "t.pdf"
+    charts.render_chart(spec, out)
+    assert out.read_bytes()[:5] == b"%PDF-"
+    import fitz
+    doc = fitz.open(out)
+    assert "Nur als Caption" not in doc[0].get_text()
+
+
 @pytest.mark.parametrize("cell,expected", [
     ("42", 42.0),
     ("-3.5", -3.5),
