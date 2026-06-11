@@ -247,6 +247,24 @@ def test_move_references_noop_when_absent():
     assert pre.move_references_last(md) == md
 
 
+def test_figure_helpers_honor_png_ext(tmp_path):
+    out = pre.render_mermaid_blocks(
+        "```mermaid\ngraph TD; A-->B\n```\n", tmp_path,
+        lambda code, p: None, ext="png")
+    assert "mermaid-" in out and ".png)" in out and ".pdf" not in out
+
+    out, n = pre.render_paperchart_blocks(
+        "```paperchart\ntype: bar\n```\n", tmp_path,
+        lambda code, p: (p, "Titel"), ext="png")
+    assert n == 1 and "chart-" in out and ".png)" in out and ".pdf" not in out
+
+    spec = type("Spec", (), {"title": "T"})()
+    out = pre.inject_autodetected_charts(
+        "| a |\n|---|\n| 1 |", tmp_path,
+        lambda s, p: p, lambda md: [(spec, 2)], ext="png")
+    assert "autochart-01.png" in out
+
+
 def test_move_references_entries_each_start_a_new_line():
     out = pre.move_references_last(REFS_MD)
     # hard line break (trailing backslash) after every entry but the last,

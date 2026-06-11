@@ -93,10 +93,11 @@ def iter_mermaid_blocks(md: str) -> list[str]:
     return [m.group(1) for m in _MERMAID.finditer(md)]
 
 
-def render_mermaid_blocks(md: str, out_dir: Path, runner) -> str:
+def render_mermaid_blocks(md: str, out_dir: Path, runner, ext: str = "pdf") -> str:
     """Replace each ```mermaid block with an image link, rendering via `runner`.
 
-    `runner(code: str, out_path: Path) -> None` produces an image file at out_path.
+    `runner(code: str, out_path: Path) -> None` produces an image file at
+    out_path. `ext` picks the figure format (pdf for LaTeX, png for docx).
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -104,7 +105,7 @@ def render_mermaid_blocks(md: str, out_dir: Path, runner) -> str:
     def repl(m: re.Match) -> str:
         code = m.group(1)
         digest = hashlib.sha1(code.encode("utf-8")).hexdigest()[:12]
-        out_path = out_dir / f"mermaid-{digest}.pdf"
+        out_path = out_dir / f"mermaid-{digest}.{ext}"
         runner(code, out_path)
         return f"![]({out_path.as_posix()})"
 
@@ -211,7 +212,8 @@ def move_references_last(md: str) -> str:
 _PAPERCHART = re.compile(r"^```paperchart[ \t]*\n(.*?)\n```[ \t]*$", re.MULTILINE | re.DOTALL)
 
 
-def render_paperchart_blocks(md: str, out_dir: Path, runner) -> tuple[str, int]:
+def render_paperchart_blocks(md: str, out_dir: Path, runner,
+                             ext: str = "pdf") -> tuple[str, int]:
     """Replace each ```paperchart block via `runner(code, out_path) -> path|None`.
 
     None (parse/render failure) drops the block from the document. Returns
@@ -227,7 +229,7 @@ def render_paperchart_blocks(md: str, out_dir: Path, runner) -> tuple[str, int]:
         count += 1
         code = m.group(1)
         digest = hashlib.sha1(code.encode("utf-8")).hexdigest()[:12]
-        result = runner(code, out_dir / f"chart-{digest}.pdf")
+        result = runner(code, out_dir / f"chart-{digest}.{ext}")
         if not result:
             return ""
         path, caption = result
@@ -236,7 +238,8 @@ def render_paperchart_blocks(md: str, out_dir: Path, runner) -> tuple[str, int]:
     return _PAPERCHART.sub(repl, md), count
 
 
-def inject_autodetected_charts(md: str, out_dir: Path, runner, detect) -> str:
+def inject_autodetected_charts(md: str, out_dir: Path, runner, detect,
+                               ext: str = "pdf") -> str:
     """Insert auto-detected chart figures after their source tables.
 
     `detect(md)` yields (spec, last_table_line_index); `runner(spec, out_path)`
@@ -248,7 +251,7 @@ def inject_autodetected_charts(md: str, out_dir: Path, runner, detect) -> str:
     lines = md.splitlines()
     found = detect(md)
     for n, (spec, end_idx) in zip(range(len(found), 0, -1), reversed(found)):
-        result = runner(spec, out_dir / f"autochart-{n:02d}.pdf")
+        result = runner(spec, out_dir / f"autochart-{n:02d}.{ext}")
         if result:
             caption = getattr(spec, "title", "") or ""
             lines[end_idx + 1:end_idx + 1] = ["", f"![{caption}]({Path(result).as_posix()})"]
@@ -267,7 +270,7 @@ def build_frontmatter(meta: dict) -> str:
     Empty fields are omitted; abstract uses a literal block scalar.
     """
     lines = ["---"]
-    for key in ("title", "author", "dateline"):
+    for key in ("title", "author", "date", "dateline"):
         if meta.get(key):
             lines.append(f"{key}: {_yaml_scalar(meta[key])}")
     if meta.get("abstract"):

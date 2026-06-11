@@ -194,6 +194,35 @@ def test_build_pandoc_cmd_one_column_has_filter_but_no_classoption():
     assert "-V" not in cmd
 
 
+def test_build_pandoc_cmd_docx_has_no_latex_machinery():
+    cmd = rp.build_pandoc_cmd("in.md", "out.docx", None, "/proj", to="docx")
+    assert cmd[0] == "pandoc"
+    assert "--template" not in cmd
+    assert "--pdf-engine=tectonic" not in cmd
+    assert "--lua-filter" not in cmd and "-V" not in cmd
+    assert "--number-sections" in cmd
+    assert "--resource-path=/proj" in cmd
+    assert cmd[-2:] == ["-o", "out.docx"]
+
+
+def test_render_docx_uses_png_figures_and_date_metadata(tmp_path):
+    src = tmp_path / "r.md"
+    src.write_text("# Titel\n\n```mermaid\ngraph TD; A-->B\n```\n", encoding="utf-8")
+    calls = {}
+
+    def fake_run(cmd, check):
+        calls["pandoc"] = cmd
+
+    rp.render(src, tmp_path / "out.docx", tmp_path, run=fake_run,
+              mmdc_runner=lambda code, p: None,
+              dateline="RWTH, Juni 2026", to="docx")
+    processed = (tmp_path / ".render" / "processed.md").read_text(encoding="utf-8")
+    assert "mermaid-" in processed and ".png)" in processed
+    assert 'date: "RWTH, Juni 2026"' in processed   # docx title block shows date
+    assert "--template" not in calls["pandoc"]
+    assert str(tmp_path / "out.docx") in calls["pandoc"]
+
+
 def test_run_paperchart_returns_none_on_bad_spec(tmp_path, capsys):
     result = rp.run_paperchart("kaputt: [", tmp_path / "c.pdf")
     assert result is None

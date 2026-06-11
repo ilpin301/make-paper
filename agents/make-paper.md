@@ -13,12 +13,13 @@ description: >-
   user what to change in the graphics (remove/add/retype charts); apply chart
   changes by editing the paperchart blocks in Papers/<name>.md and re-running
   render/render_paper.py with the same flags — a local loop, no NotebookLM calls.
-  AFTER the graphics review is settled and a PDF exists, ask the user "Make
-  DOCX?"; on yes run
+  AFTER the graphics review is settled, ask the user "Make DOCX?"; on yes run
   `python "%USERPROFILE%\.claude\make-paper\render\make_docx.py" --input
-  "<project>\Papers\<name>.pdf"` (layout-preserving pdf2docx conversion, local,
-  exit 2 = pdf2docx missing: `pip install pdf2docx`) and open the resulting
-  DOCX. Re-run it after any later re-render so the DOCX matches the PDF.
+  "<project>\Papers\<name>.md" --project "<project>" --authors "<AUTHOR_LINE>"
+  --dateline "<dateline>" --charts <same as render>` (pandoc docx writer from
+  the Markdown: editable Word file with PNG figures; the LaTeX-only looks like
+  two-column don't carry over — local, exit 2 = pandoc missing) and open the
+  resulting DOCX. Re-run it after any later chart edits so the DOCX matches.
 model: claude-sonnet-4-6
 ---
 

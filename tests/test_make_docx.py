@@ -1,3 +1,4 @@
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -9,64 +10,69 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "render"))
 import make_docx as md
 
 
-def _make_pdf(path: Path, text: str) -> None:
-    import fitz
-    doc = fitz.open()
-    page = doc.new_page()
-    page.insert_text((72, 72), text, fontsize=12)
-    doc.save(str(path))
-    doc.close()
+def test_docx_available_reports_missing_pandoc(monkeypatch):
+    monkeypatch.setattr(md.shutil, "which", lambda name: None)
+    assert "pandoc" in md.docx_available()
+    monkeypatch.setattr(md.shutil, "which", lambda name: "/usr/bin/" + name)
+    assert md.docx_available() is None
 
 
-needs_pdf2docx = pytest.mark.skipif(md.docx_available() is not None,
-                                    reason="pdf2docx not installed")
+def test_main_errors_when_pandoc_missing(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(md, "docx_available", lambda: "docx skipped (pandoc not on PATH)")
+    rc = md.main(["--input", str(tmp_path / "x.md"), "--project", str(tmp_path)])
+    assert rc == 2
+    assert "pandoc" in capsys.readouterr().err
 
 
-@needs_pdf2docx
-def test_convert_produces_valid_docx_with_text(tmp_path):
-    pdf = tmp_path / "paper.pdf"
-    _make_pdf(pdf, "Kugelfallviskosimetrie")
-    out = md.convert(pdf)
-    assert out == tmp_path / "paper.docx"
+def test_main_errors_when_input_missing(tmp_path, capsys):
+    rc = md.main(["--input", str(tmp_path / "fehlt.md"), "--project", str(tmp_path)])
+    assert rc == 1
+    assert "fehlt.md" in capsys.readouterr().err
+
+
+def test_main_renders_docx_next_to_input_by_default(tmp_path, monkeypatch, capsys):
+    src = tmp_path / "Paper.md"
+    src.write_text("# T\n\nText.\n", encoding="utf-8")
+    seen = {}
+
+    def fake_render(inp, outp, project, **kwargs):
+        seen["args"] = (Path(inp), Path(outp), Path(project))
+        seen["kwargs"] = kwargs
+        return Path(outp)
+
+    monkeypatch.setattr(md.rp, "render", fake_render)
+    rc = md.main(["--input", str(src), "--project", str(tmp_path),
+                  "--authors", "Anna Autor 1", "--dateline", "RWTH, Juni 2026"])
+    assert rc == 0
+    assert seen["args"] == (src, tmp_path / "Paper.docx", tmp_path)
+    assert seen["kwargs"]["to"] == "docx"
+    assert seen["kwargs"]["authors"] == "Anna Autor 1"
+    assert seen["kwargs"]["charts"] == "blocks"
+    assert "Paper.docx" in capsys.readouterr().out
+
+
+needs_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None,
+                                  reason="pandoc not installed")
+
+
+@needs_pandoc
+def test_main_real_pandoc_produces_docx_with_styling(tmp_path):
+    src = tmp_path / "Bericht.md"
+    src.write_text(
+        "# Stiltest\n\n### Abstract\nKurzfassung.\n\n"
+        "### Einleitung\nKugelfallviskosimetrie von Glycerin.\n\n"
+        "### Literaturverzeichnis\n1. Eine Quelle. Aachen.\n2. Zweite Quelle. Bonn.\n",
+        encoding="utf-8",
+    )
+    rc = md.main(["--input", str(src), "--project", str(tmp_path),
+                  "--authors", "Anna Autor 1", "--dateline", "RWTH, Juni 2026",
+                  "--charts", "off"])
+    assert rc == 0
+    out = tmp_path / "Bericht.docx"
     assert out.is_file()
     with zipfile.ZipFile(out) as z:
         xml = z.read("word/document.xml").decode("utf-8")
     assert "Kugelfallviskosimetrie" in xml
-
-
-@needs_pdf2docx
-def test_convert_honors_explicit_output_path(tmp_path):
-    pdf = tmp_path / "paper.pdf"
-    _make_pdf(pdf, "Inhalt")
-    out = md.convert(pdf, tmp_path / "sub" / "anders.docx")
-    assert out == tmp_path / "sub" / "anders.docx"
-    assert out.is_file()
-
-
-def test_main_errors_when_dep_missing(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(md, "docx_available", lambda: "docx skipped (pdf2docx not installed)")
-    rc = md.main(["--input", str(tmp_path / "x.pdf")])
-    assert rc == 2
-    assert "pdf2docx" in capsys.readouterr().err
-
-
-def test_main_errors_when_input_missing(tmp_path, capsys):
-    rc = md.main(["--input", str(tmp_path / "fehlt.pdf")])
-    assert rc == 1
-    assert "fehlt.pdf" in capsys.readouterr().err
-
-
-def test_main_converts_and_reports(tmp_path, monkeypatch, capsys):
-    pdf = tmp_path / "p.pdf"
-    pdf.write_bytes(b"%PDF-fake")
-    seen = {}
-
-    def fake_convert(inp, outp=None):
-        seen["args"] = (Path(inp), outp)
-        return tmp_path / "p.docx"
-
-    monkeypatch.setattr(md, "convert", fake_convert)
-    rc = md.main(["--input", str(pdf)])
-    assert rc == 0
-    assert seen["args"] == (pdf, None)
-    assert "p.docx" in capsys.readouterr().out
+    assert "Anna Autor 1" in xml                  # author in title block
+    assert "RWTH, Juni 2026" in xml               # dateline mapped to date
+    assert "Literaturverzeichnis" in xml

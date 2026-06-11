@@ -22,19 +22,25 @@ def check_dependencies(which=shutil.which) -> list[str]:
 
 
 def build_pandoc_cmd(input_path, output_path, template_path, resource_path,
-                     *, layout: str = "one") -> list[str]:
-    """Construct the Pandoc argv for a German PDF via Tectonic."""
-    cmd = [
-        "pandoc",
-        str(input_path),
-        "--template", str(template_path),
-        "--pdf-engine=tectonic",
-        "--number-sections",
-        f"--resource-path={resource_path}",
-        "--lua-filter", str(Path(__file__).parent / "filters" / "paper_style.lua"),
-    ]
-    if layout == "two":
-        cmd += ["-V", "classoption=twocolumn"]
+                     *, layout: str = "one", to: str = "pdf") -> list[str]:
+    """Construct the Pandoc argv: PDF via Tectonic, or a plain DOCX.
+
+    The docx variant drops the LaTeX machinery (template, engine, lua filter,
+    classoption) — pandoc's native writer handles headings, numbering, tables.
+    """
+    cmd = ["pandoc", str(input_path)]
+    if to == "docx":
+        cmd += ["--number-sections", f"--resource-path={resource_path}"]
+    else:
+        cmd += [
+            "--template", str(template_path),
+            "--pdf-engine=tectonic",
+            "--number-sections",
+            f"--resource-path={resource_path}",
+            "--lua-filter", str(Path(__file__).parent / "filters" / "paper_style.lua"),
+        ]
+        if layout == "two":
+            cmd += ["-V", "classoption=twocolumn"]
     cmd += ["-o", str(output_path)]
     return cmd
 
@@ -92,8 +98,9 @@ def run_autochart(spec, out_path) -> Path | None:
 
 def render(input_md, output_pdf, project_root, *, title=None, authors=None,
            dateline=None, work_dir=None, run=subprocess.run, mmdc_runner=None,
-           layout: str = "one", charts: str = "blocks") -> Path:
-    """Full pipeline: preprocess the report Markdown and render it to a PDF."""
+           layout: str = "one", charts: str = "blocks", to: str = "pdf") -> Path:
+    """Full pipeline: preprocess the report Markdown and render it to a PDF
+    (default) or a DOCX (`to="docx"`: PNG figures, no LaTeX styling pass)."""
     input_md = Path(input_md)
     output_pdf = Path(output_pdf)
     project_root = Path(project_root)
@@ -112,19 +119,22 @@ def render(input_md, output_pdf, project_root, *, title=None, authors=None,
     import charts as charts_mod
 
     figures = work_dir / "figures"
+    ext = "png" if to == "docx" else "pdf"   # Word can't embed PDF figures
     if charts != "off" and (warn := charts_mod.charts_available()):
         print(warn, file=sys.stderr)
         charts = "off"
     if charts == "off":
         md, _ = pre.render_paperchart_blocks(md, figures, lambda code, p: None)
     else:
-        md, n_blocks = pre.render_paperchart_blocks(md, figures, run_paperchart)
+        md, n_blocks = pre.render_paperchart_blocks(md, figures, run_paperchart,
+                                                    ext=ext)
         if charts == "auto" and n_blocks == 0:
             md = pre.inject_autodetected_charts(
-                md, figures, run_autochart, charts_mod.autodetect_charts
+                md, figures, run_autochart, charts_mod.autodetect_charts, ext=ext
             )
 
-    md = pre.render_mermaid_blocks(md, work_dir / "figures", mmdc_runner or run_mmdc)
+    md = pre.render_mermaid_blocks(md, work_dir / "figures",
+                                   mmdc_runner or run_mmdc, ext=ext)
 
     meta = {
         "title": title or extracted_title or "",
@@ -133,13 +143,17 @@ def render(input_md, output_pdf, project_root, *, title=None, authors=None,
         # one paragraph: the abstract lives inside the \twocolumn[{...}] head
         "abstract": re.sub(r"\s+", " ", abstract).strip() if abstract else "",
     }
+    if to == "docx":
+        # the docx writer shows `date` in the title block; `dateline` is a
+        # template-only variable that would be dropped silently
+        meta["date"] = dateline or ""
     processed = pre.build_frontmatter(meta) + md
     processed_path = work_dir / "processed.md"
     processed_path.write_text(processed, encoding="utf-8")
 
     template = Path(__file__).parent / "templates" / "paper.latex"
     cmd = build_pandoc_cmd(processed_path, output_pdf, template, project_root,
-                           layout=layout)
+                           layout=layout, to=to)
     run(cmd, check=True)
     return output_pdf
 

@@ -1,55 +1,55 @@
-"""PDF -> DOCX conversion for make-paper (post-render, on user request).
+"""Markdown -> DOCX conversion for make-paper (post-render, on user request).
 
-Layout-preserving via pdf2docx, imported lazily so the rest of the renderer
-works without it. The DOCX mirrors the rendered pages (columns, numbering,
-table lines) but is layout-frozen — the Markdown stays the editable artifact.
+Runs the same preprocess pipeline as the PDF renderer but targets pandoc's
+native docx writer: real heading styles, editable flowing text, PNG figures.
+The LaTeX-only looks (two-column, dotted numbering, table rules) don't carry
+over — the DOCX is the editable companion, the PDF stays the styled artifact.
 """
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
+import render_paper as rp
+
 
 def docx_available() -> str | None:
-    """None if pdf2docx imports; else a warning with the install fix."""
-    try:
-        import pdf2docx  # noqa: F401
-        return None
-    except ImportError as e:
-        return f"docx skipped ({e.name} not installed — pip install pdf2docx)"
-
-
-def convert(pdf_path: Path, docx_path: Path | None = None) -> Path:
-    """Convert a rendered PDF to DOCX; default target is <pdf name>.docx."""
-    from pdf2docx import Converter
-
-    pdf_path = Path(pdf_path)
-    docx_path = Path(docx_path) if docx_path else pdf_path.with_suffix(".docx")
-    docx_path.parent.mkdir(parents=True, exist_ok=True)
-    cv = Converter(str(pdf_path))
-    try:
-        cv.convert(str(docx_path))
-    finally:
-        cv.close()
-    return docx_path
+    """None if pandoc is on PATH; else a warning with the install fix."""
+    if shutil.which("pandoc") is None:
+        return ("docx skipped (pandoc not on PATH — "
+                "winget install JohnMacFarlane.Pandoc)")
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="make-paper PDF -> DOCX converter")
-    parser.add_argument("--input", required=True, help="rendered paper PDF")
+    parser = argparse.ArgumentParser(description="make-paper Markdown -> DOCX converter")
+    parser.add_argument("--input", required=True, help="report Markdown from Subsystem A")
     parser.add_argument("--output", help="target DOCX path (default: input with .docx)")
+    parser.add_argument("--project", required=True, help="project root (for images)")
+    parser.add_argument("--title", help="override the title (else first H1)")
+    parser.add_argument("--authors", help="author line, e.g. 'A 123, B 456'")
+    parser.add_argument("--dateline", help="institution dateline, e.g. 'RWTH Aachen, Juni 2026'")
+    parser.add_argument("--charts", choices=["auto", "blocks", "off"], default="blocks",
+                        help="paperchart handling, same as the PDF renderer")
     args = parser.parse_args(argv)
 
     missing = docx_available()
     if missing:
         print(missing, file=sys.stderr)
         return 2
-    pdf = Path(args.input)
-    if not pdf.is_file():
-        print(f"input PDF not found: {pdf}", file=sys.stderr)
+    src = Path(args.input)
+    if not src.is_file():
+        print(f"input Markdown not found: {src}", file=sys.stderr)
         return 1
-    out = convert(pdf, Path(args.output) if args.output else None)
+
+    out = rp.render(
+        src, Path(args.output) if args.output else src.with_suffix(".docx"),
+        args.project,
+        title=args.title, authors=args.authors, dateline=args.dateline,
+        charts=args.charts, to="docx",
+    )
     print(f"Wrote {out}")
     return 0
 
