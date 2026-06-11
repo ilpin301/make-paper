@@ -116,3 +116,108 @@ def render_chart(spec: ChartSpec, out_path) -> None:
     fig.tight_layout()
     fig.savefig(out_path)
     plt.close(fig)
+
+
+_ROW = re.compile(r"^\s*\|(.+)\|\s*$")
+_SEP = re.compile(r"^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$")
+_NUMCELL = re.compile(r"^\s*[-+]?\d[\d.,]*\s*(?:%|[A-Za-zµ°/²³·]{1,6})?\s*$")
+_YEAR = re.compile(r"^\d{4}$")
+_HEADING_LINE = re.compile(r"^#{1,6}\s+(.*\S)\s*$")
+
+
+def _to_number(cell: str) -> float | None:
+    """Parse a table cell into a float; tolerate units/% and de/en separators."""
+    if not _NUMCELL.match(cell):
+        return None
+    tok = re.match(r"\s*[-+]?[\d.,]+", cell).group(0).strip().rstrip(".,")
+    if "." in tok and "," in tok:
+        if tok.rfind(",") > tok.rfind("."):
+            tok = tok.replace(".", "").replace(",", ".")   # 1.234,5 → 1234.5
+        else:
+            tok = tok.replace(",", "")                     # 1,234.5 → 1234.5
+    elif tok.count(",") == 1:
+        head, tail = tok.split(",")
+        tok = head + tail if len(tail) == 3 else head + "." + tail
+    elif "," in tok:
+        tok = tok.replace(",", "")
+    elif tok.count(".") > 1:
+        groups = tok.split(".")
+        if all(len(g) == 3 for g in groups[1:]):
+            tok = "".join(groups)                          # 1.234.567 → 1234567
+        else:
+            return None
+    try:
+        return float(tok)
+    except ValueError:
+        return None
+
+
+def _cells(line: str) -> list[str]:
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def _context_title(lines: list[str], table_start: int) -> str | None:
+    """Nearest preceding non-blank line, if it is a heading."""
+    for k in range(table_start - 1, max(-1, table_start - 4), -1):
+        text = lines[k].strip()
+        if not text:
+            continue
+        m = _HEADING_LINE.match(text)
+        return m.group(1) if m else None
+    return None
+
+
+def _table_to_spec(header, rows, lines, table_start) -> ChartSpec | None:
+    rows = [r for r in rows if len(r) == len(header)]
+    if not (3 <= len(rows) <= 12) or len(header) < 2:
+        return None
+    labels = [r[0] for r in rows]
+    # Bare numbers (no unit suffix) in the first column mean it is data, not
+    # labels — "12" is data, but "10k" or "2,0 mm" still label categories.
+    labels_numeric = all(
+        re.fullmatch(r"\s*[-+]?[\d.,]+\s*", x) and _to_number(x) is not None
+        for x in labels
+    )
+    labels_yearlike = all(_YEAR.match(x) for x in labels)
+    if labels_numeric and not labels_yearlike:
+        return None  # first column must be label-like (years are OK)
+    numeric_cols = []
+    for c in range(1, len(header)):
+        vals = [_to_number(r[c]) for r in rows]
+        if all(v is not None for v in vals):
+            numeric_cols.append((header[c], vals))
+    if not numeric_cols:
+        return None
+    ctype = "line" if labels_yearlike and len(rows) >= 4 else "bar"
+    title = _context_title(lines, table_start) or numeric_cols[0][0]
+    return ChartSpec(
+        type=ctype, labels=labels,
+        series=[Series(name=n, values=v) for n, v in numeric_cols],
+        title=title, xlabel=header[0],
+        ylabel=numeric_cols[0][0] if len(numeric_cols) == 1 else "",
+    )
+
+
+def autodetect_charts(md: str) -> list[tuple[ChartSpec, int]]:
+    """Find chartable Markdown pipe tables.
+
+    Returns (spec, last_line_index) per table, in document order.
+    """
+    lines = md.splitlines()
+    out: list[tuple[ChartSpec, int]] = []
+    i = 0
+    while i < len(lines):
+        if _ROW.match(lines[i]) and i + 1 < len(lines) and _SEP.match(lines[i + 1]):
+            header = _cells(lines[i])
+            j = i + 2
+            rows = []
+            while j < len(lines) and _ROW.match(lines[j]) and not _SEP.match(lines[j]):
+                rows.append(_cells(lines[j]))
+                j += 1
+            spec = _table_to_spec(header, rows, lines, i)
+            if spec:
+                out.append((spec, j - 1))
+            i = j
+        else:
+            i += 1
+    return out
