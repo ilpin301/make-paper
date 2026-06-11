@@ -26,6 +26,39 @@ Subsystem-B renderer (`render/render_paper.py`). The Markdown is the canonical
 artifact; the PDF is a rendering of it. If the PDF toolchain is unavailable, the
 Markdown still stands on its own.
 
+## Network / proxy workaround (Windows + local VPN)
+
+On this machine the Windows system proxy may be a local VPN's SOCKS port (e.g.
+`socks=127.0.0.1:10808`). That breaks two things:
+
+- `notebooklm` (Python/httpx) mis-parses the registry `socks=` entry as
+  `socks4://` and fails with `Unknown scheme for proxy URL`; without any proxy
+  NotebookLM may geo-block with `location=unsupported`.
+- `tectonic` (render step) ignores the system proxy and its bundle fetches fail
+  with DNS errors for `relay.fullyjustified.net`.
+
+The VPN port is mixed-mode and accepts HTTP CONNECT, so the fix for both is the
+same env override, set **in the same shell invocation** as the command (shell
+state does not persist between tool calls). Determine the port from the system
+proxy if set:
+
+```powershell
+(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings').ProxyServer
+# e.g. "socks=127.0.0.1:10808" → PROXY_URL = http://127.0.0.1:10808
+```
+
+Then prefix every `notebooklm` call and the renderer call:
+
+```powershell
+$env:ALL_PROXY='<PROXY_URL>'; $env:HTTPS_PROXY='<PROXY_URL>'; $env:HTTP_PROXY='<PROXY_URL>'; <command>
+```
+
+Rules: if a system `socks=` proxy is configured, apply the override from the
+start. If no system proxy is set, run commands plainly — but if one then fails
+with `Unknown scheme for proxy URL`, `location=unsupported`, or a DNS/bundle
+fetch error, retry it once with the override (using port 10808 as the default)
+before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
+
 ## Steps (in order — stop and report on any failure)
 
 1. **Maintenance gate.** From the project root, run the gate defined in the
@@ -40,7 +73,8 @@ Markdown still stands on its own.
    If any command exits non-zero, ABORT and return its output. Do not touch
    NotebookLM on a failing vault.
 
-2. **Verify NotebookLM auth for the requested profile.**
+2. **Verify NotebookLM auth for the requested profile** (proxy override per the
+   network section above, here and on every later `notebooklm` call):
    ```
    notebooklm -p <profile> status
    ```
@@ -108,7 +142,8 @@ Markdown still stands on its own.
      --authors "<AUTHOR_LINE>" --dateline "<dateline>"
    ```
    This needs `pandoc`, `tectonic`, and `mmdc` on PATH (Tectonic fetches packages
-   on first run). Handle the result:
+   on first run — set the `HTTPS_PROXY`/`HTTP_PROXY` override per the network
+   section, or its fetches DNS-fail behind the VPN). Handle the result:
    - Exit 0 (prints `Wrote …pdf`): the PDF is the primary deliverable.
    - Exit 2 (prints `Missing tools: …`) or any other failure: do NOT abort. The
      Markdown report is already downloaded and is the deliverable; record that PDF
