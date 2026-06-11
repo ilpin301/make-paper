@@ -94,7 +94,7 @@ def test_render_pipeline_writes_processed_md_and_calls_pandoc(tmp_path, monkeypa
     assert 'title: "Mein Titel"' in processed
     assert 'author: "Max Mustermann"' in processed
     assert "abstract: |" in processed
-    assert "## Einleitung" in processed       # number stripped
+    assert "# Einleitung" in processed        # number stripped, level promoted
     assert "```mermaid" not in processed      # diagram replaced
     assert calls["cmd"][0] == "pandoc"
     assert str(out_pdf) in calls["cmd"]
@@ -270,3 +270,38 @@ def test_two_column_pdf_with_autochart_end_to_end(tmp_path):
     assert data[:5] == b"%PDF-"
     assert len(data) > 10_000
     assert list((tmp_path / ".render" / "figures").glob("autochart-*.pdf"))
+
+
+def test_render_pipeline_applies_styling_steps(tmp_path):
+    md_text = (
+        "# Titel\n\n**Anna Autor 1**\n**RWTH, Juni 2026**\n\n"
+        "### Abstract\nKurz.  \nZweite Zeile.\n\n"
+        "### Literaturverzeichnis\n1. Quelle Eins\n\n"
+        "### Einleitung\nText.\n"
+    )
+    processed, _ = _render_with_stubs(
+        tmp_path, md_text, authors="Anna Autor 1", dateline="RWTH, Juni 2026"
+    )
+    assert "Anna Autor 1" in processed.split("---")[1]   # only in frontmatter
+    assert "**Anna Autor 1**" not in processed
+    assert "# Einleitung" in processed                    # promoted H3 -> H1
+    assert processed.rstrip().endswith("*[1] Quelle Eins*")
+    assert "# Literaturverzeichnis {-}" in processed
+    assert "abstract:" in processed and "Zweite Zeile." in processed
+
+
+@pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")
+@pytest.mark.parametrize("layout", ["one", "two"])
+def test_template_compiles_both_layouts_with_styling(tmp_path, layout):
+    md = tmp_path / "doc.md"
+    md.write_text(
+        "# Stiltest\n\n### Abstract\nKursive Kurzfassung.\n\n"
+        "### Einleitung\nText mit Formel:\n\n$$E = m c^2$$\n\n"
+        "| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n\n"
+        "### Literaturverzeichnis\n1. Eine Quelle. Aachen.\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / f"doc-{layout}.pdf"
+    rp.render(md, out, tmp_path, authors="Anna Autor 1", dateline="RWTH, Juni 2026",
+              layout=layout, charts="off")
+    assert out.read_bytes()[:5] == b"%PDF-"

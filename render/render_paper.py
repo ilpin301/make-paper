@@ -4,6 +4,7 @@ diagrams and existing vault images."""
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -103,6 +104,9 @@ def render(input_md, output_pdf, project_root, *, title=None, authors=None,
     md = pre.strip_heading_numbers(md)
     extracted_title, md = pre.extract_title(md)
     abstract, md = pre.extract_abstract(md)
+    md = pre.strip_author_lines(md, authors or "", dateline or "")
+    md = pre.promote_headings(md)
+    md = pre.move_references_last(md)
     md, _missing = pre.resolve_images(md, project_root)
 
     import charts as charts_mod
@@ -126,7 +130,8 @@ def render(input_md, output_pdf, project_root, *, title=None, authors=None,
         "title": title or extracted_title or "",
         "author": authors or "",
         "dateline": dateline or "",
-        "abstract": abstract or "",
+        # one paragraph: the abstract lives inside the \twocolumn[{...}] head
+        "abstract": re.sub(r"\s+", " ", abstract).strip() if abstract else "",
     }
     processed = pre.build_frontmatter(meta) + md
     processed_path = work_dir / "processed.md"

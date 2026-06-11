@@ -35,19 +35,31 @@ $if(highlighting-macros)$
 $highlighting-macros$
 $endif$
 
+\usepackage{caption}
+\captionsetup{font=footnotesize,labelfont=bf,labelsep=colon}
+
 \setlength{\parindent}{1em}
 
-\title{$if(title)$$title$$else$\enspace$endif$}
-\author{$if(author)$$author$$endif$$if(dateline)$ \\[2pt] \normalsize $dateline$$endif$}
-\date{}
+% Full-width title block + label-free italic abstract (styling rules 2+3).
+\newcommand{\paperhead}{%
+  \begin{center}
+    {\LARGE $if(title)$$title$$else$\enspace$endif$\par}
+    \vskip 0.9em
+    $if(author)${\normalsize $author$\par}$endif$
+    $if(dateline)${\normalsize $dateline$\par}$endif$
+  \end{center}
+  $if(abstract)$
+  \vskip 0.6em
+  {\itshape\leftskip=2em\rightskip=2em\noindent $abstract$\par}
+  \vskip 1.2em
+  $endif$
+}
 
 \begin{document}
-\maketitle
-
-$if(abstract)$
-\begin{abstract}
-$abstract$
-\end{abstract}
+$if(classoption)$
+\twocolumn[{\paperhead}]
+$else$
+\paperhead
 $endif$
 
 $body$
