@@ -122,6 +122,7 @@ def strip_author_lines(md: str, authors: str, dateline: str) -> str:
     if not targets:
         return md
     out = []
+    removed = False
     seen_heading = False
     for line in md.splitlines():
         if _HEADING.match(line):
@@ -129,9 +130,12 @@ def strip_author_lines(md: str, authors: str, dateline: str) -> str:
         if not seen_heading:
             content = " ".join(line.replace("*", "").replace("_", "").split())
             if content in targets:
+                removed = True
                 continue
         out.append(line)
-    return "\n".join(out)
+    if not removed:
+        return md
+    return "\n".join(out) + ("\n" if md.endswith("\n") else "")
 
 
 def promote_headings(md: str) -> str:
