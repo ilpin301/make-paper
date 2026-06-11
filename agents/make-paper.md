@@ -5,10 +5,14 @@ description: >-
   Use when the user says "make paper", "do paper", "make paper in notebook", or a
   close variant. PRECONDITION the MAIN agent MUST satisfy before delegating
   (this subagent cannot ask the user anything): ask the user (1) which notebooklm
-  profile / Google account and (2) the desired notebook name, then delegate
-  passing the project path, the profile, and the notebook name in the task
+  profile / Google account, (2) the desired notebook name, (3) layout: one- or
+  two-column, and (4) whether to include data charts; then delegate passing the
+  project path, profile, notebook name, layout, and charts choice in the task
   prompt. When this agent returns, open the produced PDF for the user (or the
-  Markdown report if it reports that PDF rendering was skipped).
+  Markdown report if it reports that PDF rendering was skipped), then ask the
+  user what to change in the graphics (remove/add/retype charts); apply chart
+  changes by editing the paperchart blocks in Papers/<name>.md and re-running
+  render/render_paper.py with the same flags — a local loop, no NotebookLM calls.
 model: claude-sonnet-4-6
 ---
 
@@ -121,6 +125,23 @@ before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
    > oder Werte. Setze als Autorenzeile genau: „<author_names>". Setze als
    > Institutszeile genau: „<dateline>".
 
+   If charts were requested, append to the PROMPT:
+
+   > Wo der Bericht numerische Daten aus den Quellen zitiert, füge zusätzlich
+   > einen Codeblock mit der Sprache „paperchart" ein (YAML: type: bar|line|pie;
+   > title; labels: [...]; series: [- name, values: [...]]; bei pie genau eine
+   > Serie; values müssen exakt den Zahlen aus den Quellen entsprechen — erfinde
+   > keine Werte). Beispiel:
+   >
+   >     ```paperchart
+   >     type: bar
+   >     title: "Antwortzeiten"
+   >     labels: ["10k", "100k"]
+   >     series:
+   >       - name: "p50"
+   >         values: [12, 18]
+   >     ```
+
    Parse `.task_id`, then wait:
    ```
    notebooklm -p <profile> artifact wait <task_id> -n NOTEBOOK_ID --timeout 900
@@ -139,12 +160,16 @@ before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
      --input  "<project_path>\Papers\<notebook_name>.md" \
      --output "<project_path>\Papers\<notebook_name>.pdf" \
      --project "<project_path>" \
-     --authors "<AUTHOR_LINE>" --dateline "<dateline>"
+     --authors "<AUTHOR_LINE>" --dateline "<dateline>" \
+     --layout <one|two, as delegated> --charts <auto if charts requested, else off>
    ```
    This needs `pandoc`, `tectonic`, and `mmdc` on PATH (Tectonic fetches packages
    on first run — set the `HTTPS_PROXY`/`HTTP_PROXY` override per the network
    section, or its fetches DNS-fail behind the VPN). Handle the result:
    - Exit 0 (prints `Wrote …pdf`): the PDF is the primary deliverable.
+   - Two-column failure: if `--layout two` was requested and the renderer fails,
+     retry ONCE with `--layout one` (note the downgrade in your summary) before
+     degrading to the Markdown-only outcome.
    - Exit 2 (prints `Missing tools: …`) or any other failure: do NOT abort. The
      Markdown report is already downloaded and is the deliverable; record that PDF
      rendering was skipped and include the renderer's message (e.g. which tools to
@@ -157,4 +182,7 @@ before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
 10. **Return a summary**: notebook ID/URL, the downloaded `.md` path, the rendered
     `.pdf` path (or a clear note that PDF rendering was skipped + why), and source
     counts. Tell the main agent which file to open — the `.pdf` if it was produced,
-    otherwise the `.md`.
+    otherwise the `.md`. Also report: how many charts the report contains
+    (LLM-authored paperchart blocks vs auto-detected) and the layout actually
+    used (two / downgraded-to-one / one), so the main agent can run the
+    graphics review loop with the user.
