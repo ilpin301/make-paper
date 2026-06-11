@@ -18,6 +18,7 @@
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
+\usepackage{calc} % pandoc emits (\linewidth - X\tabcolsep) * \real{...} column widths
 \usepackage[a4paper,margin=2.3cm]{geometry}
 \usepackage[hidelinks]{hyperref}
 
