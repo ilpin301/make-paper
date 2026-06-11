@@ -157,3 +157,80 @@ def test_lua_filter_converts_tables_to_floats(tmp_path):
     assert "\\endhead" not in out and "\\endlastfoot" not in out
     # \bottomrule must come after the body rows, before \end{tabular}
     assert out.index("Skripte") < out.index("\\bottomrule")
+
+
+def test_build_pandoc_cmd_two_column_adds_filter_and_classoption():
+    cmd = rp.build_pandoc_cmd("in.md", "out.pdf", "tpl.latex", "/proj", layout="two")
+    i = cmd.index("--lua-filter")
+    assert cmd[i + 1].endswith("twocolumn_tables.lua")
+    j = cmd.index("-V")
+    assert cmd[j + 1] == "classoption=twocolumn"
+    assert cmd[-2:] == ["-o", "out.pdf"]
+
+
+def test_build_pandoc_cmd_one_column_has_no_filter():
+    cmd = rp.build_pandoc_cmd("in.md", "out.pdf", "tpl.latex", "/proj", layout="one")
+    assert "--lua-filter" not in cmd and "-V" not in cmd
+
+
+def test_run_paperchart_returns_none_on_bad_spec(tmp_path, capsys):
+    result = rp.run_paperchart("kaputt: [", tmp_path / "c.pdf")
+    assert result is None
+    assert "paperchart skipped" in capsys.readouterr().err
+
+
+def _render_with_stubs(tmp_path, md_text, **kwargs):
+    """Run rp.render with pandoc/mmdc stubbed out; return processed.md + calls."""
+    src = tmp_path / "report.md"
+    src.write_text(md_text, encoding="utf-8")
+    out_pdf = tmp_path / "out.pdf"
+    calls = {}
+
+    def fake_run(cmd, check):
+        calls["pandoc"] = cmd
+
+    rp.render(
+        src, out_pdf, tmp_path, run=fake_run,
+        mmdc_runner=lambda code, p: Path(p).write_bytes(b"%PDF-"),
+        **kwargs,
+    )
+    processed = (tmp_path / ".render" / "processed.md").read_text(encoding="utf-8")
+    return processed, calls
+
+
+GOOD_BLOCK = "```paperchart\ntype: bar\nlabels: [a, b, c]\nseries: [{values: [1, 2, 3]}]\n```\n"
+CHARTABLE_TABLE = "| K | W |\n|---|---|\n| a | 1 |\n| b | 2 |\n| c | 3 |\n"
+
+
+def test_render_charts_off_strips_blocks(tmp_path):
+    processed, _ = _render_with_stubs(tmp_path, "# T\n\n" + GOOD_BLOCK, charts="off")
+    assert "paperchart" not in processed and "![](" not in processed
+
+
+needs_chart_deps = pytest.mark.skipif(
+    __import__("charts").charts_available() is not None, reason="chart deps missing"
+)
+
+
+@needs_chart_deps
+def test_render_charts_blocks_renders_figures(tmp_path):
+    processed, _ = _render_with_stubs(tmp_path, "# T\n\n" + GOOD_BLOCK, charts="blocks")
+    assert "![](" in processed and "chart-" in processed
+
+
+@needs_chart_deps
+def test_render_charts_auto_falls_back_to_autodetect(tmp_path):
+    processed, _ = _render_with_stubs(tmp_path, "# T\n\n" + CHARTABLE_TABLE, charts="auto")
+    assert "autochart-" in processed
+
+
+@needs_chart_deps
+def test_render_charts_auto_no_fallback_when_blocks_exist(tmp_path):
+    md = "# T\n\n" + GOOD_BLOCK + "\n" + CHARTABLE_TABLE
+    processed, _ = _render_with_stubs(tmp_path, md, charts="auto")
+    assert "chart-" in processed and "autochart-" not in processed
+
+
+def test_render_two_column_uses_filter(tmp_path):
+    _, calls = _render_with_stubs(tmp_path, "# T\n\nText.\n", layout="two")
+    assert any(str(a).endswith("twocolumn_tables.lua") for a in calls["pandoc"])

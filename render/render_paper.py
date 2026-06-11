@@ -20,17 +20,22 @@ def check_dependencies(which=shutil.which) -> list[str]:
     return sorted(name for name in REQUIRED_TOOLS if which(name) is None)
 
 
-def build_pandoc_cmd(input_path, output_path, template_path, resource_path) -> list[str]:
-    """Construct the Pandoc argv for a single-column German PDF via Tectonic."""
-    return [
+def build_pandoc_cmd(input_path, output_path, template_path, resource_path,
+                     *, layout: str = "one") -> list[str]:
+    """Construct the Pandoc argv for a German PDF via Tectonic."""
+    cmd = [
         "pandoc",
         str(input_path),
         "--template", str(template_path),
         "--pdf-engine=tectonic",
         "--number-sections",
         f"--resource-path={resource_path}",
-        "-o", str(output_path),
     ]
+    if layout == "two":
+        lua = Path(__file__).parent / "filters" / "twocolumn_tables.lua"
+        cmd += ["--lua-filter", str(lua), "-V", "classoption=twocolumn"]
+    cmd += ["-o", str(output_path)]
+    return cmd
 
 
 def run_mmdc(code: str, out_path, run=subprocess.run, which=shutil.which) -> None:
@@ -56,8 +61,37 @@ def run_mmdc(code: str, out_path, run=subprocess.run, which=shutil.which) -> Non
         src.unlink(missing_ok=True)
 
 
+def run_paperchart(code: str, out_path) -> Path | None:
+    """Parse + render one paperchart block; None (and a warning) on failure."""
+    import charts
+
+    try:
+        spec = charts.parse_paperchart(code)
+        charts.render_chart(spec, out_path)
+        return Path(out_path)
+    except charts.ChartSpecError as e:
+        print(f"paperchart skipped: {e}", file=sys.stderr)
+        return None
+    except Exception as e:  # matplotlib failures etc. — never fatal
+        print(f"paperchart render failed: {e}", file=sys.stderr)
+        return None
+
+
+def run_autochart(spec, out_path) -> Path | None:
+    """Render one auto-detected chart spec; None (and a warning) on failure."""
+    import charts
+
+    try:
+        charts.render_chart(spec, out_path)
+        return Path(out_path)
+    except Exception as e:
+        print(f"autochart render failed: {e}", file=sys.stderr)
+        return None
+
+
 def render(input_md, output_pdf, project_root, *, title=None, authors=None,
-           dateline=None, work_dir=None, run=subprocess.run, mmdc_runner=None) -> Path:
+           dateline=None, work_dir=None, run=subprocess.run, mmdc_runner=None,
+           layout: str = "one", charts: str = "blocks") -> Path:
     """Full pipeline: preprocess the report Markdown and render it to a PDF."""
     input_md = Path(input_md)
     output_pdf = Path(output_pdf)
@@ -70,6 +104,22 @@ def render(input_md, output_pdf, project_root, *, title=None, authors=None,
     extracted_title, md = pre.extract_title(md)
     abstract, md = pre.extract_abstract(md)
     md, _missing = pre.resolve_images(md, project_root)
+
+    import charts as charts_mod
+
+    figures = work_dir / "figures"
+    if charts != "off" and (warn := charts_mod.charts_available()):
+        print(warn, file=sys.stderr)
+        charts = "off"
+    if charts == "off":
+        md, _ = pre.render_paperchart_blocks(md, figures, lambda code, p: None)
+    else:
+        md, n_blocks = pre.render_paperchart_blocks(md, figures, run_paperchart)
+        if charts == "auto" and n_blocks == 0:
+            md = pre.inject_autodetected_charts(
+                md, figures, run_autochart, charts_mod.autodetect_charts
+            )
+
     md = pre.render_mermaid_blocks(md, work_dir / "figures", mmdc_runner or run_mmdc)
 
     meta = {
@@ -83,7 +133,8 @@ def render(input_md, output_pdf, project_root, *, title=None, authors=None,
     processed_path.write_text(processed, encoding="utf-8")
 
     template = Path(__file__).parent / "templates" / "paper.latex"
-    cmd = build_pandoc_cmd(processed_path, output_pdf, template, project_root)
+    cmd = build_pandoc_cmd(processed_path, output_pdf, template, project_root,
+                           layout=layout)
     run(cmd, check=True)
     return output_pdf
 
@@ -96,6 +147,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--title", help="override the title (else first H1)")
     parser.add_argument("--authors", help="author line, e.g. 'A 123, B 456'")
     parser.add_argument("--dateline", help="institution dateline, e.g. 'RWTH Aachen, Juni 2026'")
+    parser.add_argument("--layout", choices=["one", "two"], default="one",
+                        help="page layout: one or two columns")
+    parser.add_argument("--charts", choices=["auto", "blocks", "off"], default="blocks",
+                        help="paperchart handling: blocks only, +autodetect fallback, or off")
     args = parser.parse_args(argv)
 
     missing = check_dependencies()
@@ -106,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     out = render(
         args.input, args.output, args.project,
         title=args.title, authors=args.authors, dateline=args.dateline,
+        layout=args.layout, charts=args.charts,
     )
     print(f"Wrote {out}")
     return 0
