@@ -67,6 +67,16 @@ PATH. (Tectonic fetches LaTeX packages + the TeX Gyre Termes font on first run.)
 - Chart edits after a run are local: edit the ```` ```paperchart ```` blocks in
   `Papers/<name>.md`, re-run the renderer.
 
+### v2.1: styling rules
+
+Always applied: label-free italic full-width abstract (named "Abstract");
+authors/dateline only at the title block; references end the paper as
+unnumbered "Literaturverzeichnis" with italic `[1] …` entries; display
+formulas numbered `(1)`, `(2)`; table cells centered (H+V) in floats;
+figures captioned "Abbildung N: <Titel>" (bold label, footnotesize);
+sections numbered 1 / 1.1 / 1.1.1.
+
 ### Status / scope
 v1: tables + Mermaid + existing images, single-column.
 v2 (built): paperchart data charts + per-run two-column layout.
+v2.1 (built): the styling rules above.

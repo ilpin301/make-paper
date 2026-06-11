@@ -125,6 +125,12 @@ before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
    > oder Werte. Setze als Autorenzeile genau: „<author_names>". Setze als
    > Institutszeile genau: „<dateline>".
 
+   Always append to the PROMPT:
+
+   > Nenne den Abstract-Abschnitt exakt „Abstract" (englisches Wort, als
+   > Überschrift „### Abstract"). Beende das Paper mit einem Abschnitt
+   > „Literaturverzeichnis", der die tatsächlich verwendeten Quellen auflistet.
+
    If charts were requested, append to the PROMPT:
 
    > Wo der Bericht numerische Daten aus den Quellen zitiert, füge zusätzlich
