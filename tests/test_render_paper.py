@@ -205,6 +205,12 @@ def test_build_pandoc_cmd_docx_has_no_latex_machinery():
     assert cmd[-2:] == ["-o", "out.docx"]
 
 
+def test_build_pandoc_cmd_docx_uses_reference_doc():
+    cmd = rp.build_pandoc_cmd("in.md", "out.docx", None, "/proj", to="docx")
+    ref = [a for a in cmd if str(a).startswith("--reference-doc=")]
+    assert ref and ref[0].endswith("reference.docx")
+
+
 def test_render_docx_uses_png_figures_and_date_metadata(tmp_path):
     src = tmp_path / "r.md"
     src.write_text("# Titel\n\n```mermaid\ngraph TD; A-->B\n```\n", encoding="utf-8")

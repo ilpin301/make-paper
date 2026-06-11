@@ -31,6 +31,9 @@ def build_pandoc_cmd(input_path, output_path, template_path, resource_path,
     cmd = ["pandoc", str(input_path)]
     if to == "docx":
         cmd += ["--number-sections", f"--resource-path={resource_path}"]
+        reference = Path(__file__).parent / "templates" / "reference.docx"
+        if reference.is_file():
+            cmd.append(f"--reference-doc={reference}")
     else:
         cmd += [
             "--template", str(template_path),

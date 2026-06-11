@@ -16,10 +16,12 @@ description: >-
   AFTER the graphics review is settled, ask the user "Make DOCX?"; on yes run
   `python "%USERPROFILE%\.claude\make-paper\render\make_docx.py" --input
   "<project>\Papers\<name>.md" --project "<project>" --authors "<AUTHOR_LINE>"
-  --dateline "<dateline>" --charts <same as render>` (pandoc docx writer from
-  the Markdown: editable Word file with PNG figures; the LaTeX-only looks like
-  two-column don't carry over — local, exit 2 = pandoc missing) and open the
-  resulting DOCX. Re-run it after any later chart edits so the DOCX matches.
+  --dateline "<dateline>" --charts <same as render> --layout <same as render>`
+  (pandoc docx writer from the Markdown, styled like the PDF via
+  templates/reference.docx: Times, paper sizes/margins, italic abstract, PNG
+  figures, two-column body with full-width head when layout two — local,
+  exit 2 = pandoc missing) and open the resulting DOCX. Re-run it after any
+  later chart edits so the DOCX matches.
 model: claude-sonnet-4-6
 ---
 
