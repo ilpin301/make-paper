@@ -234,3 +234,28 @@ def test_render_charts_auto_no_fallback_when_blocks_exist(tmp_path):
 def test_render_two_column_uses_filter(tmp_path):
     _, calls = _render_with_stubs(tmp_path, "# T\n\nText.\n", layout="two")
     assert any(str(a).endswith("twocolumn_tables.lua") for a in calls["pandoc"])
+
+
+@pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")
+@needs_chart_deps
+def test_two_column_pdf_with_autochart_end_to_end(tmp_path):
+    md = tmp_path / "report.md"
+    md.write_text(
+        "# Zweispaltiger Testbericht\n\n"
+        "## Zusammenfassung\nKurzfassung des Berichts.\n\n"
+        "## Messwerte\n\n"
+        "| Indexgröße | p50 | p99 |\n|---|---|---|\n"
+        "| 10k | 12 | 40 |\n| 100k | 18 | 95 |\n| 1M | 35 | 210 |\n\n"
+        "## Architektur\n\n"
+        "| A | B | C | D |\n|---|---|---|---|\n"
+        "| 1 | 2 | 3 | 4 |\n| 5 | 6 | 7 | 8 |\n| 9 | 1 | 2 | 3 |\n\n"
+        "Fließtext danach mit Umlauten: äöüß.\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "report.pdf"
+    rp.render(md, out, tmp_path, authors="Test Autor 123456",
+              dateline="RWTH Aachen, Juni 2026", layout="two", charts="auto")
+    data = out.read_bytes()
+    assert data[:5] == b"%PDF-"
+    assert len(data) > 10_000
+    assert list((tmp_path / ".render" / "figures").glob("autochart-*.pdf"))
