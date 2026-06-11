@@ -2,20 +2,65 @@
 
 Generate a German-language paper from any LLM-wiki project via NotebookLM.
 
-## Install
-1. `python -m pip install notebooklm-py pytest`
-2. Authenticate each Google account as a profile, once:
-   `notebooklm profile create <name>` then `notebooklm -p <name> login`
-3. Copy the subagent into Claude Code's agents dir:
-   `Copy-Item agents\make-paper.md $env:USERPROFILE\.claude\agents\make-paper.md -Force`
+## Setup on a new machine
+
+Prerequisites: Claude Code, Python 3.10+, Node.js (only for Mermaid
+diagrams), git. The steps are Windows-flavored (PowerShell); macOS/Linux
+should work analogously but is untested.
+
+1. **Clone this repo — the path matters.** The subagent invokes the helper
+   scripts by this absolute path:
+   ```powershell
+   git clone https://github.com/ilpin301/make-paper.git "$env:USERPROFILE\.claude\make-paper"
+   ```
+2. **Install the subagent** (Claude Code picks up anything in `~/.claude/agents/`):
+   ```powershell
+   Copy-Item "$env:USERPROFILE\.claude\make-paper\agents\make-paper.md" "$env:USERPROFILE\.claude\agents\make-paper.md" -Force
+   ```
+3. **Python packages:**
+   ```powershell
+   python -m pip install notebooklm-py pyyaml matplotlib
+   ```
+   (`notebooklm-py` = Subsystem A; `pyyaml`+`matplotlib` = charts. Missing
+   chart deps degrade to a no-chart paper, never a failure. Add `pytest` to
+   run the test suite.)
+4. **PDF toolchain** (see "Subsystem B install" below for the no-winget
+   fallback; the DOCX option needs only pandoc):
+   ```powershell
+   winget install JohnMacFarlane.Pandoc TectonicProject.Tectonic
+   npm install -g @mermaid-js/mermaid-cli
+   ```
+   Tectonic downloads LaTeX packages + fonts on its first run (needs
+   internet once). If the toolchain is missing, the subagent degrades to
+   the Markdown report and tells you what to install.
+5. **NotebookLM login — once per machine, per Google account** (browser
+   OAuth; cookies are stored locally, nothing can be copied over):
+   ```powershell
+   notebooklm profile create <name>
+   notebooklm -p <name> login
+   ```
+6. **Have a vault.** The project you write the paper from must be on the
+   machine too, with its structure: `Wiki/` notes, the `AGENTS.md`
+   maintenance gate (`scripts/wiki_tool.py`, `scripts/audit_public.py`),
+   and optionally `Samples/` + `Autors/autors.md` — if absent, the global
+   fallbacks in `~/.claude/make-paper/assets/` are used (drop your sample
+   paper and authors file there once).
+
+Note: the agent has a built-in proxy workaround for machines whose system
+proxy is a local VPN SOCKS port; on machines with normal internet it stays
+out of the way.
 
 ## Use
-In any wiki project, say "make paper". The main agent asks which profile and
-notebook name, then delegates to the `make-paper` subagent, which produces a
-German Markdown report in the project's `Papers/` folder **and automatically
-renders it to a styled PDF** (Subsystem B). If the PDF toolchain isn't installed,
-it falls back to the Markdown and tells you what to install. The main agent then
-opens the PDF (or the Markdown).
+In any wiki project, say "make paper". The main agent asks which profile,
+notebook name, layout (one/two-column), and whether to include charts, then
+delegates to the `make-paper` subagent, which produces a German Markdown
+report in the project's `Papers/` folder **and automatically renders it to a
+styled PDF** (Subsystem B). If the PDF toolchain isn't installed, it falls
+back to the Markdown and tells you what to install. The main agent then opens
+the PDF (or the Markdown), runs a graphics review loop (chart edits are
+local re-renders), and finally asks "Make DOCX?" — on yes it builds an
+editable Word version via `render/make_docx.py` (pandoc docx writer, PNG
+figures; the LaTeX-only looks like two-column don't carry over).
 
 ## Tests
 `python -m pytest tests -v`
@@ -57,7 +102,7 @@ PATH. (Tectonic fetches LaTeX packages + the TeX Gyre Termes font on first run.)
 ### v2: charts + two-column
 
 - `--layout one|two` (default `one`): two-column uses `classoption=twocolumn`
-  plus `render/filters/twocolumn_tables.lua` (tables become `table`/`table*`
+  plus `render/filters/paper_style.lua` (tables become `table`/`table*`
   floats; pandoc's `longtable` cannot live inside `twocolumn`).
 - `--charts auto|blocks|off` (default `blocks`): renders ```` ```paperchart ````
   YAML blocks (bar/line/pie) via matplotlib to vector PDF figures; `auto` adds
@@ -67,16 +112,18 @@ PATH. (Tectonic fetches LaTeX packages + the TeX Gyre Termes font on first run.)
 - Chart edits after a run are local: edit the ```` ```paperchart ```` blocks in
   `Papers/<name>.md`, re-run the renderer.
 
-### v2.1: styling rules
+### v2.1 + v2.2: styling rules
 
-Always applied: label-free italic full-width abstract (named "Abstract");
-authors/dateline only at the title block; references end the paper as
-unnumbered "Literaturverzeichnis" with italic `[1] …` entries; display
-formulas numbered `(1)`, `(2)`; table cells centered (H+V) in floats;
-figures captioned "Abbildung N: <Titel>" (bold label, footnotesize);
-sections numbered 1 / 1.1 / 1.1.1.
+Always applied: italic full-width abstract under an unnumbered section-style
+"Abstract" heading; authors/dateline only at the title block; references end
+the paper as unnumbered "Literaturverzeichnis" with italic `[1] …` entries,
+one per line; display formulas numbered `(1)`, `(2)`; table cells centered
+(H+V) in floats with vertical lines between columns; figures captioned
+"Abbildung N: <Titel>" (bold label, footnotesize); sections numbered
+1. / 1.1 / 1.1.1 (dot after first level only).
 
 ### Status / scope
 v1: tables + Mermaid + existing images, single-column.
 v2 (built): paperchart data charts + per-run two-column layout.
-v2.1 (built): the styling rules above.
+v2.1 + v2.2 (built): the styling rules above.
+DOCX option (built): post-run "Make DOCX?" → editable Word via pandoc.
