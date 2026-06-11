@@ -35,7 +35,8 @@ python "$env:USERPROFILE\.claude\make-paper\render\render_paper.py" `
   --output "<project>\Papers\<name>.pdf" `
   --project "<project>" `
   --authors "<author_names from A's manifest, comma-joined>" `
-  --dateline "<dateline from A's manifest>"
+  --dateline "<dateline from A's manifest>" `
+  --layout two --charts auto
 ```
 
 Requires `pandoc`, `tectonic`, and `mmdc` on PATH (see install below). The renderer
@@ -53,7 +54,19 @@ If `winget`'s source is unavailable, download the portable `pandoc.exe` and
 `tectonic.exe` from their GitHub releases, drop them in a folder, and add it to
 PATH. (Tectonic fetches LaTeX packages + the TeX Gyre Termes font on first run.)
 
+### v2: charts + two-column
+
+- `--layout one|two` (default `one`): two-column uses `classoption=twocolumn`
+  plus `render/filters/twocolumn_tables.lua` (tables become `table`/`table*`
+  floats; pandoc's `longtable` cannot live inside `twocolumn`).
+- `--charts auto|blocks|off` (default `blocks`): renders ```` ```paperchart ````
+  YAML blocks (bar/line/pie) via matplotlib to vector PDF figures; `auto` adds
+  table auto-detection as fallback when the report has no blocks; `off`
+  strips blocks. Soft deps: `pip install pyyaml matplotlib` — missing deps
+  skip charts with a warning, never fail the render.
+- Chart edits after a run are local: edit the ```` ```paperchart ```` blocks in
+  `Papers/<name>.md`, re-run the renderer.
+
 ### Status / scope
-v1: tables + Mermaid + existing images, single-column. Deferred to v2:
-auto-generated data charts; faithful two-column layout (needs a longtable→table*
-Lua filter to survive LaTeX twocolumn).
+v1: tables + Mermaid + existing images, single-column.
+v2 (built): paperchart data charts + per-run two-column layout.
