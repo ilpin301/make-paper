@@ -56,3 +56,39 @@ def test_parse_rejects_bad_specs(code, msg):
     with pytest.raises(charts.ChartSpecError) as exc:
         charts.parse_paperchart(code)
     assert msg.lower() in str(exc.value).lower()
+
+
+def _have_chart_deps():
+    try:
+        import matplotlib  # noqa: F401
+        import yaml  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+needs_deps = pytest.mark.skipif(not _have_chart_deps(), reason="matplotlib/yaml not installed")
+
+
+@needs_deps
+@pytest.mark.parametrize("ctype,series", [
+    ("bar", [{"name": "p50", "values": [1, 2, 3]}, {"name": "p99", "values": [4, 5, 6]}]),
+    ("line", [{"name": "A", "values": [1, 2, 3]}]),
+    ("pie", [{"values": [30, 50, 20]}]),
+])
+def test_render_chart_writes_vector_pdf(tmp_path, ctype, series):
+    spec = charts.ChartSpec(
+        type=ctype, labels=["a", "b", "c"],
+        series=[charts.Series(s.get("name", ""), [float(v) for v in s["values"]]) for s in series],
+        title="Testdiagramm", xlabel="x", ylabel="y",
+    )
+    out = tmp_path / f"{ctype}.pdf"
+    charts.render_chart(spec, out)
+    data = out.read_bytes()
+    assert data[:5] == b"%PDF-"
+    assert len(data) > 1000
+
+
+def test_charts_available_reports_or_none():
+    msg = charts.charts_available()
+    assert msg is None or "pip install" in msg

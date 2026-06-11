@@ -66,3 +66,53 @@ def parse_paperchart(code: str) -> ChartSpec:
         xlabel=str(data.get("xlabel", "")),
         ylabel=str(data.get("ylabel", "")),
     )
+
+
+def charts_available() -> str | None:
+    """None if chart deps import; else a warning with the install fix."""
+    try:
+        import matplotlib  # noqa: F401
+        import yaml  # noqa: F401
+        return None
+    except ImportError as e:
+        return f"charts skipped ({e.name} not installed — pip install pyyaml matplotlib)"
+
+
+def render_chart(spec: ChartSpec, out_path) -> None:
+    """Render a ChartSpec to a vector PDF sized for one paper column."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plt.rcParams.update({"font.family": "serif", "font.size": 8})
+    fig, ax = plt.subplots(figsize=(3.35, 2.4))
+    pos = range(len(spec.labels))
+    if spec.type == "pie":
+        ax.pie(spec.series[0].values, labels=spec.labels,
+               autopct="%1.0f%%", textprops={"fontsize": 8})
+    elif spec.type == "line":
+        for s in spec.series:
+            ax.plot(list(pos), s.values, marker="o", linewidth=1.2,
+                    markersize=3, label=s.name)
+        ax.set_xticks(list(pos))
+        ax.set_xticklabels(spec.labels)
+    else:  # bar
+        width = 0.8 / len(spec.series)
+        for i, s in enumerate(spec.series):
+            ax.bar([x + i * width for x in pos], s.values, width, label=s.name)
+        ax.set_xticks([x + 0.4 - width / 2 for x in pos])
+        ax.set_xticklabels(spec.labels)
+    if spec.type != "pie":
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        if spec.xlabel:
+            ax.set_xlabel(spec.xlabel)
+        if spec.ylabel:
+            ax.set_ylabel(spec.ylabel)
+        if len(spec.series) > 1 and any(s.name for s in spec.series):
+            ax.legend(frameon=False)
+    if spec.title:
+        ax.set_title(spec.title)
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
