@@ -6,9 +6,15 @@ description: >-
   close variant. PRECONDITION the MAIN agent MUST satisfy before delegating
   (this subagent cannot ask the user anything): ask the user (1) which notebooklm
   profile / Google account, (2) the desired notebook name, (3) layout: one- or
-  two-column, and (4) whether to include data charts; then delegate passing the
-  project path, profile, notebook name, layout, and charts choice in the task
-  prompt. When this agent returns, open the produced PDF for the user (or the
+  two-column, and (4) whether to include data charts; and (5) check the
+  project's Samples/ folder (then the global fallback
+  %USERPROFILE%\.claude\make-paper\assets\Samples\): if it has NO files,
+  proceed without asking — the built-in house style (render templates) applies
+  by default; if it DOES contain files, ask the user what to do with them
+  (use as structure/genre samples as usual, ignore them, or follow other
+  instructions) and pass that decision in the task prompt. Then delegate
+  passing the project path, profile, notebook name, layout, charts choice,
+  and the samples decision in the task prompt. When this agent returns, open the produced PDF for the user (or the
   Markdown report if it reports that PDF rendering was skipped), then ask the
   user what to change in the graphics (remove/add/retype charts); apply chart
   changes by editing the paperchart blocks in Papers/<name>.md and re-running
@@ -110,7 +116,12 @@ before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
    every later call — never rely on `use`.
 
 5. **Add sources.** Add every `wiki_sources` file (the paper material), every
-   `sample_sources` file (style refs, titled `sample-01`…), and `authors_source`:
+   `sample_sources` file (style refs, titled `sample-01`…), and `authors_source`.
+   Samples decision from the task prompt: if it says to IGNORE the samples,
+   skip the `sample_sources` uploads (and drop the sample-related sentences
+   from the PROMPT in step 6) — the visual style always comes from the
+   built-in render templates either way. If no samples exist, that is the
+   normal default case: proceed without them.
    ```
    notebooklm -p <profile> source add "<file>" --notebook NOTEBOOK_ID --json
    ```
