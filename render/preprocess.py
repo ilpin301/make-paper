@@ -112,14 +112,38 @@ def render_mermaid_blocks(md: str, out_dir: Path, runner, ext: str = "pdf") -> s
     return _MERMAID.sub(repl, md)
 
 
-def strip_author_lines(md: str, authors: str, dateline: str) -> str:
-    """Drop pre-heading lines duplicating the authors line or the dateline.
+_LETTERS_ONLY = re.compile(r"[^A-Za-zÄÖÜäöüß]")
+_LABEL_RESIDUE = 24   # letters a label like "Autoren:"/"Institution:" can have
 
-    Only exact content matches (emphasis markers and whitespace ignored) in
-    the region BEFORE the first ATX heading are removed — the title block
-    already carries authors + dateline (styling rule 3).
-    """
+
+def _author_targets(authors: str, dateline: str) -> list[str]:
+    """Substrings that mark a line as author/institution info, longest first."""
     targets = {" ".join(t.split()) for t in (authors, dateline) if t and t.strip()}
+    for part in (authors or "").split(","):
+        name = " ".join(part.split())
+        if name:
+            targets.add(name)
+            bare = re.sub(r"[\s\d]+$", "", name)   # without matriculation number
+            if bare:
+                targets.add(bare)
+    if dateline and "," in dateline:
+        inst = dateline.split(",", 1)[0].strip()
+        if inst:
+            targets.add(inst)
+    return sorted(targets, key=len, reverse=True)
+
+
+def strip_author_lines(md: str, authors: str, dateline: str) -> str:
+    """Drop pre-heading lines carrying author or institution info.
+
+    The title block already shows authors + dateline (styling rule 3), but
+    NotebookLM repeats them below the abstract in varying shapes ("Autoren:
+    P. N. (478314) …", "**Institution:** RWTH Aachen"). A line is dropped
+    when removing every matched target leaves at most a short label, so real
+    sentences that merely mention the institution survive. Only the region
+    BEFORE the first ATX heading is touched.
+    """
+    targets = _author_targets(authors, dateline)
     if not targets:
         return md
     out = []
@@ -130,7 +154,11 @@ def strip_author_lines(md: str, authors: str, dateline: str) -> str:
             seen_heading = True
         if not seen_heading:
             content = " ".join(line.replace("*", "").replace("_", "").split())
-            if content in targets:
+            residue = content
+            for t in targets:
+                residue = residue.replace(t, "")
+            if (content and residue != content
+                    and len(_LETTERS_ONLY.sub("", residue)) <= _LABEL_RESIDUE):
                 removed = True
                 continue
         out.append(line)

@@ -51,6 +51,31 @@ def test_main_renders_docx_next_to_input_by_default(tmp_path, monkeypatch, capsy
     assert "Paper.docx" in capsys.readouterr().out
 
 
+def test_style_tables_centers_cells_and_shades_header(tmp_path):
+    import docx
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = docx.Document()
+    t = doc.add_table(rows=2, cols=2)
+    t.cell(0, 0).text = "Kopf A"
+    t.cell(0, 1).text = "Kopf B"
+    t.cell(1, 0).text = "Wert"
+    path = tmp_path / "t.docx"
+    doc.save(str(path))
+
+    md.style_tables(path)
+
+    doc = docx.Document(str(path))
+    t = doc.tables[0]
+    for row in t.rows:
+        for cell in row.cells:
+            assert all(p.alignment == WD_ALIGN_PARAGRAPH.CENTER
+                       for p in cell.paragraphs)
+    with zipfile.ZipFile(path) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+    assert xml.count(f'w:fill="{md.HEADER_FILL}"') == 2   # header cells only
+
+
 needs_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None,
                                   reason="pandoc not installed")
 

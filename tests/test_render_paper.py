@@ -163,19 +163,44 @@ def test_paper_style_filter_tables_and_equations(tmp_path):
     ).stdout
     # tables: floats, centered, no longtable leftovers
     assert "longtable" not in out
-    assert "\\begin{table}[t]" in out      # 2-column table -> column float
-    assert "\\begin{table*}[t]" in out     # 4-column table -> spanning float
+    assert out.count("\\begin{table}[t]") == 1    # narrow 2-col -> column float
+    # 4-col table AND wide-celled 2-col table -> spanning floats (rule v2.3-2)
+    assert out.count("\\begin{table*}[t]") == 2
     assert "\\endhead" not in out and "\\endlastfoot" not in out
-    # vertical lines between columns, none at the outer edges (rule v2.2)
-    assert "{@{}c|c@{}}" in out            # simple 2-col table
-    assert "{@{}c|c|c|c@{}}" in out        # simple 4-col table
-    assert re.search(r"\\real\{[\d.]+\}\}\|", out)   # width-managed columns
-    assert out.index("Skripte") < out.index("\\bottomrule")
+    # full grid: vertical lines incl. the outer edges (rule v2.3-4)
+    assert "{|c|c|}" in out                # simple 2-col table
+    assert "{|c|c|c|c|}" in out            # simple 4-col table
+    assert re.search(r"\\real\{[\d.]+\}\}\|", out)     # width-managed columns
+    assert re.search(r"\\real\{[\d.]+\}\}\|\}", out)   # ... incl. outer edge
+    # booktabs rules replaced by \hline so verticals meet horizontals
+    assert "\\toprule" not in out and "\\bottomrule" not in out
+    assert "\\hline" in out
+    assert out.index("Skripte") < out.rindex("\\hline")
+    # light-blue header row on every table (rule v2.3-4)
+    assert out.count("\\rowcolor{tableheadbg}") == 3
     # display math: numbered equation, no plain \[ block
     assert "\\begin{equation}" in out and "E = m c^2" in out
     assert "\\[" not in out
     # captioned image survives as a figure with caption
     assert "\\caption{Testtitel" in out
+
+
+@needs_pandoc
+def test_paper_style_filter_references_full_width(tmp_path):
+    filt = Path(rp.__file__).parent / "filters" / "paper_style.lua"
+    src = tmp_path / "r.md"
+    src.write_text(
+        "# Einleitung\n\nText.\n\n# Literaturverzeichnis {-}\n\n*[1] Quelle*\n",
+        encoding="utf-8",
+    )
+    out = subprocess.run(
+        ["pandoc", str(src), "-t", "latex", "--lua-filter", str(filt)],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    # two-column layout switches to one column for the references (rule v2.3-1)
+    switch = "\\if@twocolumn\\onecolumn\\fi"
+    assert switch in out
+    assert out.index(switch) < out.index("Literaturverzeichnis")
 
 
 def test_build_pandoc_cmd_two_column_adds_filter_and_classoption():
@@ -346,6 +371,33 @@ def test_template_has_v22_styling_declarations():
     # rule 4 support: booktabs rules must meet the new vertical lines
     assert "\\setlength{\\aboverulesep}{0pt}" in template
     assert "\\setlength{\\belowrulesep}{0pt}" in template
+
+
+def test_render_strips_author_lines_inside_abstract(tmp_path):
+    md_text = (
+        "# Titel\n\n## Abstract\nKurzfassung des Versuchs.\n\n"
+        "Autoren: Anna Autor\nInstitution: RWTH Aachen\n\n## Einleitung\nText.\n"
+    )
+    processed, _ = _render_with_stubs(
+        tmp_path, md_text, authors="Anna Autor 1", dateline="RWTH Aachen, Juni 2026"
+    )
+    front = processed.split("---")[1]
+    assert "Kurzfassung des Versuchs." in front
+    assert "Autoren" not in front and "Institution" not in front
+
+
+def test_template_has_v23_styling_declarations():
+    template = (Path(rp.__file__).parent / "templates" / "paper.latex").read_text(encoding="utf-8")
+    # rule 1: body text flush left (head keeps its own alignment)
+    assert "\\RaggedRight" in template
+    # rule 2: no hyphenation anywhere; abstract stays justified via stretch
+    assert "\\hyphenpenalty=10000" in template
+    assert "\\exhyphenpenalty=10000" in template
+    assert "\\emergencystretch=3em" in template
+    # rule 4: light-blue table header rows, captions tight under the table
+    assert "\\usepackage[table]{xcolor}" in template
+    assert "\\definecolor{tableheadbg}{RGB}{217,226,243}" in template
+    assert "\\captionsetup[table]{skip=4pt}" in template
 
 
 @pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")

@@ -34,14 +34,24 @@ def test_build_reference_docx_applies_paper_styles(tmp_path):
     assert styles["Abstract"].font.italic is True
     assert styles["Abstract"].paragraph_format.left_indent.pt == 22
     assert styles["ImageCaption"].font.size.pt == 8
+    # v2.3 rule 1: body flush left (abstract stays justified)
+    assert styles["BodyText"].paragraph_format.alignment == WD_ALIGN_PARAGRAPH.LEFT
+    assert styles["FirstParagraph"].paragraph_format.alignment == WD_ALIGN_PARAGRAPH.LEFT
+    assert styles["Abstract"].paragraph_format.alignment == WD_ALIGN_PARAGRAPH.JUSTIFY
+    # v2.3 rule 4: table captions smaller than body text
+    if "TableCaption" in styles:
+        assert styles["TableCaption"].font.size.pt == 8
 
     section = doc.sections[0]
     assert round(section.left_margin.cm, 2) == 2.3
     assert round(section.page_width.cm, 1) == 21.0     # A4
 
-    with zipfile.ZipFile(out) as z:
-        styles_xml = z.read("word/styles.xml").decode("utf-8")
-    assert "w:insideV" in styles_xml                   # table column separators
+    # v2.3 rule 4: full grid borders on the Table style (was insideV only)
+    from docx.oxml.ns import qn
+    table_style = next(s for s in doc.styles if s.style_id == "Table")
+    borders = table_style.element.find(qn("w:tblPr")).find(qn("w:tblBorders"))
+    for side in ("top", "left", "bottom", "right", "insideV"):
+        assert borders.find(qn(f"w:{side}")) is not None, side
 
 
 def test_apply_two_column_layout_splits_head_and_body(tmp_path):
@@ -63,6 +73,28 @@ def test_apply_two_column_layout_splits_head_and_body(tmp_path):
     assert 'w:val="continuous"' in body                # no page break between
 
 
+def test_apply_two_column_layout_references_full_width(tmp_path):
+    import docx
+    doc = docx.Document()
+    doc.add_paragraph("Mein Titel", style="Title")
+    doc.add_paragraph("Fliesstext des Berichts.")
+    doc.add_paragraph("Literaturverzeichnis", style="Heading 1")
+    doc.add_paragraph("[1] Quelle Eins.")
+    path = tmp_path / "d.docx"
+    doc.save(str(path))
+
+    md.apply_two_column_layout(path)
+
+    with zipfile.ZipFile(path) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+    parts = xml.split("<w:sectPr")
+    assert len(parts) == 4                  # head + body + references sections
+    assert 'w:num="1"' in parts[1]          # head: one column
+    assert 'w:num="2"' in parts[2]          # body: two columns
+    assert 'w:num="1"' in parts[3]          # references: full width again
+    assert 'w:val="continuous"' in parts[3]
+
+
 @needs_pandoc
 def test_docx_end_to_end_styled_two_column(tmp_path):
     src = tmp_path / "Bericht.md"
@@ -81,4 +113,5 @@ def test_docx_end_to_end_styled_two_column(tmp_path):
         styles_xml = z.read("word/styles.xml").decode("utf-8")
     assert "Times New Roman" in styles_xml             # reference.docx applied
     assert 'w:num="2"' in doc_xml                      # two-column body
-    assert doc_xml.count("<w:sectPr") == 2             # full-width head section
+    # full-width head + two-column body + full-width references (v2.3)
+    assert doc_xml.count("<w:sectPr") == 3

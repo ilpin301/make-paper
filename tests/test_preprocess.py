@@ -190,6 +190,24 @@ def test_strip_author_lines_only_before_first_heading():
     assert AUTHORS in out
 
 
+def test_strip_author_lines_removes_labeled_variants():
+    md = (
+        "Autoren: Petr Nasybulin (478314) und Philipp Gembruch (472685)\n"
+        "**Institution:** RWTH Aachen\n\n## Einleitung\nText.\n"
+    )
+    out = pre.strip_author_lines(md, AUTHORS, DATELINE)
+    before = out.split("## Einleitung")[0]
+    assert "Autoren" not in before and "Institution" not in before
+    assert "## Einleitung" in out
+
+
+def test_strip_author_lines_keeps_sentences_mentioning_institution():
+    md = ("Die Versuche wurden im Praktikum der RWTH Aachen "
+          "durchgeführt und ausgewertet.\n\n## Einleitung\n")
+    out = pre.strip_author_lines(md, AUTHORS, DATELINE)
+    assert "Praktikum der RWTH Aachen" in out
+
+
 def test_strip_author_lines_noop_without_matches():
     md = "Ganz normaler Text.\n\n## Einleitung\n"
     assert pre.strip_author_lines(md, AUTHORS, DATELINE) == md

@@ -19,9 +19,18 @@
 \usepackage{longtable}
 \usepackage{array}
 \usepackage{calc} % pandoc emits (\linewidth - X\tabcolsep) * \real{...} column widths
+\usepackage[table]{xcolor} % colortbl for \rowcolor; load before hyperref
+\definecolor{tableheadbg}{RGB}{217,226,243}
+\usepackage{ragged2e}
 \setlength{\columnsep}{0.8cm}
 \usepackage[a4paper,margin=2.3cm]{geometry}
 \usepackage[hidelinks]{hyperref}
+
+% No hyphenation anywhere, tables included; the abstract stays justified
+% and gets emergency stretch instead of hyphens.
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\emergencystretch=3em
 
 % --- Pandoc compatibility shims ---
 \providecommand{\tightlist}{%
@@ -37,6 +46,7 @@ $endif$
 
 \usepackage{caption}
 \captionsetup{font=footnotesize,labelfont=bf,labelsep=colon}
+\captionsetup[table]{skip=4pt}
 
 \setlength{\parindent}{1em}
 
@@ -73,6 +83,9 @@ $if(classoption)$
 $else$
 \paperhead
 $endif$
+% Body flush left; \RaggedRight (vs \raggedright) keeps \parindent.
+% Title/abstract above set their own alignment, table cells stay centered.
+\RaggedRight
 
 $body$
 

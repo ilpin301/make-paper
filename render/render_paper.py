@@ -115,6 +115,11 @@ def render(input_md, output_pdf, project_root, *, title=None, authors=None,
     extracted_title, md = pre.extract_title(md)
     abstract, md = pre.extract_abstract(md)
     md = pre.strip_author_lines(md, authors or "", dateline or "")
+    if abstract:
+        # NotebookLM also repeats author/institution lines inside the
+        # abstract section (styling rule v2.3-3)
+        abstract = pre.strip_author_lines(abstract, authors or "",
+                                          dateline or "").strip()
     md = pre.promote_headings(md)
     md = pre.move_references_last(md)
     md, _missing = pre.resolve_images(md, project_root)

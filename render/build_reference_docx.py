@@ -1,7 +1,7 @@
 """Generate render/templates/reference.docx — the pandoc style template that
 makes DOCX output look like the rendered PDF (Times, paper font sizes, A4 with
 2.3cm margins, italic indented abstract, black bold headings, 8pt captions,
-vertical table borders).
+flush-left body text, full grid table borders).
 
 Starts from pandoc's default reference.docx and restyles it with python-docx.
 The result is committed; rebuilding is only needed when the style mapping here
@@ -61,8 +61,8 @@ def _style(styles, style_id, *, name=None, size=None, bold=None, italic=None,
             pf.first_line_indent = Pt(first_line)
 
 
-def _add_table_column_borders(doc):
-    """insideV border on the Table style — the PDF's vertical column lines."""
+def _add_table_borders(doc):
+    """Full grid borders on the Table style — like the PDF's bordered tables."""
     from docx.oxml.ns import qn
 
     table_style = next(s for s in doc.styles if s.style_id == "Table")
@@ -72,16 +72,16 @@ def _add_table_column_borders(doc):
         tblpr = el.makeelement(qn("w:tblPr"), {})
         el.append(tblpr)
     borders = tblpr.find(qn("w:tblBorders"))
-    if borders is None:
-        borders = tblpr.makeelement(qn("w:tblBorders"), {})
-        tblpr.append(borders)
-    insidev = borders.find(qn("w:insideV"))
-    if insidev is None:
-        insidev = borders.makeelement(qn("w:insideV"), {})
-        borders.append(insidev)
-    insidev.set(qn("w:val"), "single")
-    insidev.set(qn("w:sz"), "4")
-    insidev.set(qn("w:color"), "000000")
+    if borders is not None:
+        tblpr.remove(borders)
+    borders = tblpr.makeelement(qn("w:tblBorders"), {})
+    tblpr.append(borders)
+    for side in ("top", "left", "bottom", "right", "insideV"):   # schema order
+        edge = borders.makeelement(qn(f"w:{side}"), {})
+        edge.set(qn("w:val"), "single")
+        edge.set(qn("w:sz"), "4")
+        edge.set(qn("w:color"), "000000")
+        borders.append(edge)
 
 
 def build(out_path: Path | None = None) -> Path:
@@ -121,10 +121,13 @@ def build(out_path: Path | None = None) -> Path:
            black=True)
     _style(styles, "Heading3", name=FONT, size=11, bold=True, italic=False,
            black=True)
-    _style(styles, "BodyText", align=J, first_line=11)   # \parindent 1em
-    _style(styles, "FirstParagraph", align=J, first_line=0)
+    L = WD_ALIGN_PARAGRAPH.LEFT
+    _style(styles, "BodyText", align=L, first_line=11)   # \parindent 1em, flush left
+    _style(styles, "FirstParagraph", align=L, first_line=0)
     _style(styles, "ImageCaption", name=FONT, size=8, black=True, align=C)
-    _add_table_column_borders(doc)
+    if "TableCaption" in styles:
+        _style(styles, "TableCaption", name=FONT, size=8, black=True)
+    _add_table_borders(doc)
 
     section = doc.sections[0]
     section.page_width, section.page_height = Mm(210), Mm(297)   # A4
