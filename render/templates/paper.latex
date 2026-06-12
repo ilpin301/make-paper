@@ -54,6 +54,11 @@ $endif$
 % \thesubsection is restated without \thesection so it doesn't become "1..1".
 \renewcommand{\thesection}{\arabic{section}.}
 \renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}}
+% Single regular space between section number and heading text
+% (the article class default \@seccntformat inserts a \quad).
+\makeatletter
+\renewcommand{\@seccntformat}[1]{\csname the#1\endcsname\space}
+\makeatother
 
 % Tables carry vertical column separators; collapse booktabs' rule
 % separation so those lines meet the horizontal rules without gaps.

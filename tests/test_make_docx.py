@@ -76,6 +76,22 @@ def test_style_tables_centers_cells_and_shades_header(tmp_path):
     assert xml.count(f'w:fill="{md.HEADER_FILL}"') == 2   # header cells only
 
 
+def test_normalize_heading_numbers_replaces_tab_with_space(tmp_path):
+    import docx
+    doc = docx.Document()
+    h = doc.add_paragraph(style="Heading 1")
+    h.add_run("1\tEinleitung")                # pandoc --number-sections shape
+    doc.add_paragraph("Spalte A\tSpalte B")          # non-heading: untouched
+    path = tmp_path / "h.docx"
+    doc.save(str(path))
+
+    md.normalize_heading_numbers(path)
+
+    doc = docx.Document(str(path))
+    assert doc.paragraphs[0].text == "1 Einleitung"
+    assert doc.paragraphs[1].text == "Spalte A\tSpalte B"
+
+
 needs_pandoc = pytest.mark.skipif(shutil.which("pandoc") is None,
                                   reason="pandoc not installed")
 

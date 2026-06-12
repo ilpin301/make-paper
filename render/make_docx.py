@@ -55,6 +55,23 @@ def style_tables(docx_path: Path) -> None:
     doc.save(str(docx_path))
 
 
+def normalize_heading_numbers(docx_path: Path) -> None:
+    """Single regular space between section number and heading text.
+
+    Pandoc's --number-sections separates them with a tab, which Word renders
+    as a wide gap (the PDF template fixes the same via \\@seccntformat).
+    """
+    import docx
+
+    doc = docx.Document(str(docx_path))
+    for p in doc.paragraphs:
+        if p.style.style_id.startswith("Heading") and "\t" in p.text:
+            for run in p.runs:
+                if "\t" in run.text:
+                    run.text = run.text.replace("\t", " ")
+    doc.save(str(docx_path))
+
+
 def apply_two_column_layout(docx_path: Path) -> None:
     """Two-column body with a full-width title head, like the PDF.
 
@@ -150,6 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     if out.is_file():
         try:
             style_tables(out)
+            normalize_heading_numbers(out)
             if args.layout == "two":
                 apply_two_column_layout(out)
         except ImportError as e:

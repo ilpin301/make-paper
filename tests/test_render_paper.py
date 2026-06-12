@@ -398,6 +398,9 @@ def test_template_has_v23_styling_declarations():
     assert "\\usepackage[table]{xcolor}" in template
     assert "\\definecolor{tableheadbg}{RGB}{217,226,243}" in template
     assert "\\captionsetup[table]{skip=4pt}" in template
+    # addendum: one regular space between section number and heading text
+    assert ("\\renewcommand{\\@seccntformat}[1]"
+            "{\\csname the#1\\endcsname\\space}") in template
 
 
 @pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")
