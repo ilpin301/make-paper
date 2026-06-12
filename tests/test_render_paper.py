@@ -135,6 +135,7 @@ import shutil
 
 TABLE_MD = (
     "| Komponente | Pfad |\n|---|---|\n| Wiki | /wiki |\n| Schema | /schema |\n| Skripte | /scripts |\n"
+    "\n: Anteil in % bei T = 21,5 Grad.\n"
     "\nText.\n\n"
     "| A | B | C | D |\n|---|---|---|---|\n| 1 | 2 | 3 | 4 |\n| 5 | 6 | 7 | 8 |\n| 9 | 10 | 11 | 12 |\n"
 )
@@ -183,6 +184,9 @@ def test_paper_style_filter_tables_and_equations(tmp_path):
     assert "\\[" not in out
     # captioned image survives as a figure with caption
     assert "\\caption{Testtitel" in out
+    # table caption rendered with LaTeX-escaped specials (raw % would
+    # comment out \caption's closing brace)
+    assert "\\caption{Anteil in \\% bei T = 21,5 Grad.}" in out
 
 
 @needs_pandoc
@@ -401,6 +405,11 @@ def test_template_has_v23_styling_declarations():
     # addendum: one regular space between section number and heading text
     assert ("\\renewcommand{\\@seccntformat}[1]"
             "{\\csname the#1\\endcsname\\space}") in template
+    # addendum: bold main title; paragraph indent survives \RaggedRight;
+    # no vertical glue-stretching gaps below headings (\flushbottom)
+    assert "\\LARGE\\bfseries" in template
+    assert "\\setlength{\\RaggedRightParindent}{1em}" in template
+    assert "\\raggedbottom" in template
 
 
 @pytest.mark.skipif(rp.check_dependencies() != [], reason="render toolchain not installed")

@@ -86,6 +86,7 @@ def resolve_images(md: str, project_root: Path) -> tuple[str, list[str]]:
 
 
 _MERMAID = re.compile(r"^```mermaid[ \t]*\n(.*?)\n```[ \t]*$", re.MULTILINE | re.DOTALL)
+_MERMAID_CAPTION = re.compile(r"^%%\s*caption:\s*(.+?)\s*$", re.MULTILINE)
 
 
 def iter_mermaid_blocks(md: str) -> list[str]:
@@ -98,16 +99,20 @@ def render_mermaid_blocks(md: str, out_dir: Path, runner, ext: str = "pdf") -> s
 
     `runner(code: str, out_path: Path) -> None` produces an image file at
     out_path. `ext` picks the figure format (pdf for LaTeX, png for docx).
+    A `%% caption: <text>` comment line inside the block becomes the figure
+    caption (mermaid treats %% lines as comments, so mmdc ignores it).
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     def repl(m: re.Match) -> str:
         code = m.group(1)
+        cap = _MERMAID_CAPTION.search(code)
+        caption = cap.group(1) if cap else ""
         digest = hashlib.sha1(code.encode("utf-8")).hexdigest()[:12]
         out_path = out_dir / f"mermaid-{digest}.{ext}"
         runner(code, out_path)
-        return f"![]({out_path.as_posix()})"
+        return f"![{caption}]({out_path.as_posix()})"
 
     return _MERMAID.sub(repl, md)
 

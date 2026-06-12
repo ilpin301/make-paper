@@ -83,6 +83,15 @@ def test_render_mermaid_blocks_replaces_with_image(tmp_path):
     assert calls[0][0] == "graph TD; A-->B"
 
 
+def test_render_mermaid_blocks_extracts_caption_comment(tmp_path):
+    md = "```mermaid\n%% caption: Aufbau des Versuchs\ngraph TD; A-->B\n```\n"
+    out = pre.render_mermaid_blocks(
+        md, tmp_path / "figures",
+        lambda code, p: Path(p).write_bytes(b"%PDF-fake"),
+    )
+    assert "![Aufbau des Versuchs](" in out
+
+
 def test_build_frontmatter_quotes_scalars_and_blocks_abstract():
     meta = {
         "title": 'Titel mit "Anführung"',

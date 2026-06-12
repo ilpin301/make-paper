@@ -108,7 +108,7 @@ def build(out_path: Path | None = None) -> Path:
     styles = {s.style_id: s for s in doc.styles}
     C, J = WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.JUSTIFY
     _style(styles, "Normal", name=FONT, size=11, black=True)
-    _style(styles, "Title", name=FONT, size=17, bold=False, black=True, align=C)
+    _style(styles, "Title", name=FONT, size=17, bold=True, black=True, align=C)
     _style(styles, "Author", name=FONT, size=11, black=True, align=C)
     _style(styles, "Date", name=FONT, size=11, black=True, align=C)
     _style(styles, "AbstractTitle", name=FONT, size=14.5, bold=True,

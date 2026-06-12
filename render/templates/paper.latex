@@ -48,7 +48,16 @@ $endif$
 \captionsetup{font=footnotesize,labelfont=bf,labelsep=colon}
 \captionsetup[table]{skip=4pt}
 
+% Paragraph indent ~3 spaces; first paragraphs after headings stay flush
+% (LaTeX default). \RaggedRight replaces \parindent with its own register,
+% which defaults to 0pt — keep BOTH in sync or the indent silently vanishes.
 \setlength{\parindent}{1em}
+\setlength{\RaggedRightParindent}{1em}
+
+% Columns end where their content ends. The twocolumn default \flushbottom
+% force-stretches vertical glue when a column break leaves a column short,
+% dumping large gaps after section headings.
+\raggedbottom
 
 % Dot after first-level section numbers only ("1. Einleitung", "1.1 ...").
 % \thesubsection is restated without \thesection so it doesn't become "1..1".
@@ -70,7 +79,7 @@ $endif$
 % section-style "Abstract" heading.
 \newcommand{\paperhead}{%
   \begin{center}
-    {\LARGE $if(title)$$title$$else$\enspace$endif$\par}
+    {\LARGE\bfseries $if(title)$$title$$else$\enspace$endif$\par}
     \vskip 0.9em
     $if(author)${\normalsize $author$\par}$endif$
     $if(dateline)${\normalsize $dateline$\par}$endif$

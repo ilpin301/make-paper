@@ -26,6 +26,7 @@ def test_build_reference_docx_applies_paper_styles(tmp_path):
     assert styles["Normal"].font.name == "Times New Roman"
     assert styles["Normal"].font.size.pt == 11
     assert styles["Title"].font.size.pt == 17
+    assert styles["Title"].font.bold is True
     assert styles["Title"].paragraph_format.alignment == WD_ALIGN_PARAGRAPH.CENTER
     assert styles["Heading1"].font.size.pt == 14.5
     assert styles["Heading1"].font.bold is True

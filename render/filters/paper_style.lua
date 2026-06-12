@@ -31,7 +31,13 @@ end
 function Table(tbl)
   local ncols = #tbl.colspecs
   local wide = ncols >= WIDE_COLUMNS or estimated_width(tbl) > CHAR_BUDGET
-  local caption = pandoc.utils.stringify(tbl.caption.long)
+  -- the caption goes into a RawBlock, so write it through the latex writer
+  -- to escape specials (a raw % would comment out \caption's closing brace)
+  local caption = ""
+  if pandoc.utils.stringify(tbl.caption.long) ~= "" then
+    caption = pandoc.write(pandoc.Pandoc(tbl.caption.long), "latex")
+                :gsub("%s+$", "")
+  end
   tbl.caption = pandoc.Caption()
   for i, spec in ipairs(tbl.colspecs) do
     tbl.colspecs[i] = { pandoc.AlignCenter, spec[2] }
