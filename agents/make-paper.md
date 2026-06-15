@@ -4,7 +4,19 @@ description: >-
   Generates a German-language paper from an LLM-wiki project using NotebookLM.
   Use when the user says "make paper", "do paper", "make paper in notebook", or a
   close variant. PRECONDITION the MAIN agent MUST satisfy before delegating
-  (this subagent cannot ask the user anything): ask the user (1) which notebooklm
+  (this subagent cannot ask the user anything), asking in this order:
+  FIRST ask the dialog language (1. English, 2. Deutsch, 3. Русский) and then
+  conduct ALL further main-session interaction — the prompt-mode question, the
+  questions below, the graphics review, the "Make DOCX?" question, and every
+  status/summary message — in the chosen language (the paper itself always stays
+  German regardless of this choice; do not pass the language to the subagent).
+  SECOND ask how to generate the NotebookLM prompt (1. Default, 2. I already
+  have my own prompt, 3. Let's discuss this): on 1 use the default prompt; on 2
+  ask the user to provide their prompt (paste a block or give a file path), load
+  the text, and pass it as PROMPT_OVERRIDE in the task prompt; on 3 invoke the
+  grIL-me skill to discuss it, then re-ask this prompt-mode question (it resolves
+  to 1 or 2 — there is no automatic hand-off of the discussion).
+  THEN ask the user (1) which notebooklm
   profile / Google account, (2) the desired notebook name, (3) layout: one- or
   two-column, and (4) whether to include data charts; and (5) check the
   project's Samples/ folder (then the global fallback
@@ -14,7 +26,8 @@ description: >-
   (use as structure/genre samples as usual, ignore them, or follow other
   instructions) and pass that decision in the task prompt. Then delegate
   passing the project path, profile, notebook name, layout, charts choice,
-  and the samples decision in the task prompt. When this agent returns, open the produced PDF for the user (or the
+  the samples decision, and PROMPT_OVERRIDE (only if the user supplied one)
+  in the task prompt. When this agent returns, open the produced PDF for the user (or the
   Markdown report if it reports that PDF rendering was skipped), then ask the
   user what to change in the graphics (remove/add/retype charts); apply chart
   changes by editing the paperchart blocks in Papers/<name>.md and re-running
@@ -37,7 +50,10 @@ You generate a German-language paper from the current LLM-wiki project via the
 `notebooklm` CLI. You run isolated: everything you need (project path, notebooklm
 profile, notebook name) is in your task prompt. If any is missing, stop and
 return an error asking the main agent to supply it — never attempt to ask the
-user yourself.
+user yourself. The task prompt MAY also carry an optional `PROMPT_OVERRIDE` (a
+user-supplied NotebookLM prompt); when present it replaces the default content
+prompt in Step 6 (the structural rules are still appended). It is optional —
+its absence is the normal Default case.
 
 Output of this subagent is a **German Markdown report** downloaded into the
 project's `Papers/` folder, which you then **render to a styled PDF** via the
@@ -135,7 +151,14 @@ before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
    notebooklm -p <profile> generate report "<PROMPT>" --format custom \
      --language de --notebook NOTEBOOK_ID --json
    ```
-   PROMPT (fill `<dateline>` and `<author_names>` from the manifest):
+   The PROMPT is CONTENT + STRUCTURE. CONTENT is the default paragraph below in
+   Default mode, OR — if the task prompt carries a `PROMPT_OVERRIDE` — that
+   override text verbatim instead of the default paragraph. STRUCTURE is the
+   always-appended block(s) below; appended in BOTH modes so the renderer never
+   breaks.
+
+   CONTENT — default paragraph (Default mode; fill `<dateline>` and
+   `<author_names>` from the manifest):
    > Schreibe ein wissenschaftliches Paper **auf Deutsch**, unabhängig von der
    > Sprache der Quellen (übersetze/synthetisiere bei Bedarf). Stütze den Inhalt
    > ausschließlich auf die bereitgestellten Quellen, deren Titel NICHT mit
@@ -145,7 +168,20 @@ before reporting failure. Do NOT use a `socks5://` URL (socksio not installed).
    > oder Werte. Setze als Autorenzeile genau: „<author_names>". Setze als
    > Institutszeile genau: „<dateline>".
 
-   Always append to the PROMPT:
+   CONTENT — override (only if a `PROMPT_OVERRIDE` was supplied): use the
+   override text as CONTENT verbatim, then append this restated structure
+   guarantee (the override may omit these, and the renderer + title block require
+   them; if the samples decision was to ignore samples, drop the sample sentence
+   as in Step 5):
+   > Schreibe das Paper auf Deutsch, unabhängig von der Sprache der Quellen.
+   > Stütze den Inhalt ausschließlich auf die bereitgestellten Quellen, deren
+   > Titel NICHT mit "sample" beginnt; erfinde keine Daten oder Werte. Stelle
+   > strukturierte Daten als Markdown-Tabellen dar. Setze als Autorenzeile genau:
+   > "<author_names>". Setze als Institutszeile genau: "<dateline>". Falls
+   > "sample*"-Quellen vorhanden sind, übernimm aus ihnen ausschließlich die
+   > Dokumentstruktur, nicht deren Inhalt.
+
+   Always append to the PROMPT (STRUCTURE — both modes):
 
    > Nenne den Abstract-Abschnitt exakt „Abstract" (englisches Wort, als
    > Überschrift „### Abstract"). Beende das Paper mit einem Abschnitt

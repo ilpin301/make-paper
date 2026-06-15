@@ -52,9 +52,16 @@ proxy is a local VPN SOCKS port; on machines with normal internet it stays
 out of the way.
 
 ## Use
-In any wiki project, say "make paper". The main agent asks which profile,
-notebook name, layout (one/two-column), and whether to include charts, then
-delegates to the `make-paper` subagent, which produces a German Markdown
+In any wiki project, say "make paper". The main agent first asks which
+**dialog language** to use (English / Deutsch / Русский) — it then runs the rest
+of the conversation in that language (the paper itself is always German) — and
+how to generate the **NotebookLM prompt** (Default, "I already have my own
+prompt", or "Let's discuss this" → a grIL-me discussion, after which you pick
+default or your own). A supplied prompt replaces the default content prompt while
+the structural rules the renderer needs (German, sources-only, Abstract,
+Literaturverzeichnis, charts) are still appended. The main agent then asks which
+profile, notebook name, layout (one/two-column), and whether to include charts,
+then delegates to the `make-paper` subagent, which produces a German Markdown
 report in the project's `Papers/` folder **and automatically renders it to a
 styled PDF** (Subsystem B). If the PDF toolchain isn't installed, it falls
 back to the Markdown and tells you what to install. The main agent then opens
